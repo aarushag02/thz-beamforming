@@ -1,0 +1,6 @@
+notebooks/deepmimo_scenarios/
+data/*.npy
+models/lstm_best.pt
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
