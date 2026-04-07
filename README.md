@@ -1,4 +1,4 @@
-# thz-beamforming
+# 5G and Programmable Networks Project
 # Predictive THz Beamforming Using a Digital Twin and LSTM
 
 A predictive beamforming system for 6G THz wireless communications. 
