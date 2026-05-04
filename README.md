@@ -19,6 +19,16 @@ A three-component predictive framework:
 2. **LSTM trajectory predictor** — takes the last 10 known user positions and predicts the next position with sub-0.2 m accuracy on training trajectories.
 3. **Predictive MRT beamforming** — at each timestep, the LSTM prediction is used to retrieve the future channel from the digital twin. Maximum Ratio Transmission weights are computed and the beam is pre-steered *now* to where the user will be *next*.
 
+## Digital Twin: DeepMIMO
+
+This project utilizes the DeepMIMO framework to generate high-fidelity 60GHz channel data. DeepMIMO is a widely recognized industry-standard dataset generator based on 3D ray-tracing, bridging the gap between theoretical modeling and real-world 5G/6G deployments.
+
+**Digital Twin:** The simulation environment serves as a digital twin of a [Insert Scenario, e.g., "Dense Urban" or "Indoor Office"] environment, providing site-specific channel parameters that account for reflections, diffractions, and blockages.
+
+**Industry Relevance:** DeepMIMO is extensively used in wireless R&D in companies like NVIDIA, Qualcomm and Nokia, to benchmark beamforming algorithms, channel estimation techniques, and Machine Learning models for mmWave and Sub-THz communications.
+
+**Source:** The dataset was generated using the [DeepMIMO Framework](https://www.deepmimo.net/).
+
 ---
 
 ## Results Summary
