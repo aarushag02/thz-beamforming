@@ -43,6 +43,14 @@ T4. Any other GPU is fine, as long as the paper reports which one was used.
 
 ## 2. Get the code
 
+**local, once:** the branch exists only on your machine until you push it.
+
+```bash
+git push -u origin minlstm-streaming
+```
+
+**VM:**
+
 ```bash
 git clone -b minlstm-streaming https://github.com/aarushag02/thz-beamforming.git
 cd thz-beamforming
@@ -70,20 +78,33 @@ python experiments/run_study.py --quick --out results/quick --models models/quic
 ```
 
 Confirm `results/quick/streaming_study.json` exists and the log shows every
-phase (classical, learned, held-out, bench). Bring the log back if anything
-looks off before spending hours on the full run.
+phase (classical, learned, held-out, bench). Then check:
+
+- every learned MAE is finite;
+- hybrid models are no worse than IMM (with zero output a hybrid model equals
+  IMM exactly);
+- each learned entry's `stream_mae` matches its `test_mae[0]` (streaming
+  `step()` must reproduce the parallel forward on the GPU);
+- the `minlstm_seq_compiled` bench row has no `error`;
+- `train_seconds`, which lets you project the full runtime.
+
+Bring the log back if anything looks off before spending hours on the full run.
 
 ## 5. Full run (hours), surviving SSH disconnects
 
 ```bash
 tmux new -s study
-python experiments/run_study.py 2>&1 | tee results/full_run.log
+python experiments/run_study.py 2>&1 | tee -a results/full_run.log
 # detach: Ctrl-b then d      reattach later: tmux attach -t study
 ```
 
-Results are written after each phase and after each learned configuration. After a
-crash or preemption, rerun the same command with `--resume` to skip finished
-configurations.
+Results are written after each phase and after each learned configuration.
+After a crash or preemption, resume; `tee -a` appends to the same log rather
+than overwriting it:
+
+```bash
+python experiments/run_study.py --resume 2>&1 | tee -a results/full_run.log
+```
 
 ## 6. Beam misalignment and tables
 
@@ -100,9 +121,17 @@ base-station coordinates instead.
 
 ```bash
 git add results/streaming_study.json results/streaming_predictions.npz \
-        results/streaming_*.png results/beam_eval.json results/full_run.log paper/tables
+        results/streaming_*.png results/full_run.log paper/tables
+git add results/beam_eval.json 2>/dev/null || echo "no beam_eval.json (step 6 skipped)"
 git commit -m "Add full streaming study results (T4)"
 git push origin minlstm-streaming
+```
+
+Model checkpoints (`models/*.pt`) are git-ignored, so copy them separately
+(**local**):
+
+```bash
+gcloud compute scp --recurse thz-minlstm:~/thz-beamforming/models ./models_t4 --zone=us-central1-a
 ```
 
 **local:** `git pull` on the same branch.

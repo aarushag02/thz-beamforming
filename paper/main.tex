@@ -27,9 +27,10 @@ which re-process the whole window every slot and are rarely compared with
 tuned tracking filters. We recast next-position prediction as a streaming
 problem and study minLSTM, a minimal recurrent unit whose gates depend only on
 the current input. This lets it train with a parallel prefix scan over whole
-trajectories and run inference with one constant-cost update per slot. On a
-maneuvering-user corpus in the DeepMIMO O1 60\,GHz scenario with $\sigma=0.5$\,m
-localisation noise, we compare minLSTM and LSTM, used either directly or as a
+trajectories and run inference with one constant-cost update per slot. On
+synthetic maneuvering-user trajectories confined to the receiver grid of the
+DeepMIMO O1 60\,GHz scenario, observed with $\sigma=0.5$\,m localisation
+noise, we compare minLSTM and LSTM, used either directly or as a
 learned correction to an interacting-multiple-model (IMM) filter, against tuned
 classical trackers. We also measure training cost, per-slot latency and
 multiply-accumulates. \todo{one sentence of headline results from
@@ -84,11 +85,16 @@ position $\mathbf{z}_t = \mathbf{p}_t + \mathbf{n}_t$, with
 $\mathbf{n}_t \sim \mathcal{N}(\mathbf{0}, \sigma^2 \mathbf{I})$ and
 $\sigma = 0.5$\,m representing sensing-aided positioning. It must choose the
 beam for slot $t{+}1$ from $\mathbf{z}_{0:t}$. A predictor outputs
-$\hat{\mathbf{p}}_{t+1}$. The beam is the MRT precoder of the digital-twin
-channel at the grid point nearest $\hat{\mathbf{p}}_{t+1}$, evaluated on the
-true channel at $\mathbf{p}_{t+1}$. Angular misalignment is reported in
-half-power beamwidths, $\theta_{\mathrm{HPBW}} \approx 102^\circ / N_t$, which
-makes errors comparable across array sizes.
+$\hat{\mathbf{p}}_{t+1}$ and the beam is steered toward it. We measure the
+angular misalignment, as seen from the base station, between the bearings of
+$\hat{\mathbf{p}}_{t+1}$ and of the true position $\mathbf{p}_{t+1}$. We
+express it in half-power beamwidths, using the broadside approximation for a
+half-wavelength ULA, $\theta_{\mathrm{HPBW}} \approx 102^\circ / N_t$, so that
+errors are comparable across array sizes. A beam is counted as in outage when
+the misalignment exceeds half a beamwidth. This is a geometric metric. The
+corresponding received-SNR evaluation through the ray-traced channel, using
+MRT on the digital-twin channel at $\hat{\mathbf{p}}_{t+1}$ evaluated on the
+true channel, is left to an extended version.
 
 \paragraph*{Mobility}
 Users follow coordinated-turn motion with a piecewise-constant turn rate that
@@ -125,24 +131,37 @@ Because the coefficients do not depend on $\mathbf{h}_{t-1}$, the recurrence is
 a linear first-order scan. During training it is evaluated over the whole
 trajectory with a log-space prefix scan~\cite{heinsen2023scan}. At inference
 it is unrolled one slot at a time. Training and inference compute the same
-function; our tests check the two agree numerically. We stack layers (depth
-gives upper layers time-dependent gates) and optionally wrap each in a
-pre-norm residual block.
+function. For every trained model, we stream the test set slot by slot and
+check that this reproduces the error of the parallel evaluation
+(\todo{report max deviation from results JSON: stream\_mae vs.\ test\_mae}).
+We stack layers (depth gives upper layers time-dependent gates) and
+optionally wrap each in a pre-norm residual block.
 
 \subsection{Baselines}
 Classical: reactive hold, two-point constant velocity, a least-squares line
-over $W$ observations, a constant-velocity Kalman filter, and a three-model
-IMM (CV, CT$(\pm\omega)$)~\cite{blom1988imm}. Both filters run once along the
-trajectory rather than restarting per window. Window length, process noise
-$q$, turn rate $\omega$ and the Markov self-transition probability are tuned on
-validation trajectories. Learned: LSTM~\cite{hochreiter1997lstm} (cuDNN) in the
-same streaming formulation. Every network gets an equal Optuna budget (TPE
-sampler with median pruning) and is reported as mean $\pm$ std over seeds.
+over the last $W$ observations (fewer during the first $W$ slots), a
+constant-velocity Kalman filter, and a three-model IMM (CV,
+CT$(\pm\omega)$)~\cite{blom1988imm}. Both filters run once along the trajectory
+rather than restarting per window, and both are given the true measurement
+noise $\sigma$. Window length, process noise $q$, turn rate $\omega$ and the
+Markov self-transition probability are grid-searched on validation
+trajectories. Learned: LSTM~\cite{hochreiter1997lstm} (cuDNN) in the same
+streaming formulation. Every network gets an equal Optuna budget (TPE sampler
+with median pruning).
 
 \section{Experimental Setup}
-\todo{Corpus size, splits (70/15/15 by trajectory), search space, seeds,
-hardware (GPU model from results/streaming\_study.json meta), software
-versions.}
+The corpus has 600 trajectories of 200 slots, split 70/15/15 by whole
+trajectory. Every learned configuration (architecture $\times$ mode) is tuned
+with 20 Optuna trials over hidden size $\{32,64,128\}$, depth $\{1,2,3\}$,
+learning rate $[3\times10^{-4}, 10^{-2}]$ (log-uniform), dropout $[0,0.2]$,
+batch size $\{4,8,16\}$ trajectories and weight decay $\{0,10^{-5},10^{-4}\}$.
+Training runs for up to 300 epochs with early stopping (patience 30) on
+validation loss. Search trials use seeds disjoint from the reported ones. The
+best configuration is retrained with 5 seeds and reported as mean $\pm$
+population standard deviation. Because each sample is a whole trajectory,
+small batches are needed to give enough optimizer steps per epoch.
+\todo{GPU model, torch version and CPU thread count from
+results/streaming\_study.json meta.}
 
 \section{Results}
 
@@ -173,7 +192,10 @@ beamwidth?}
 
 \section{Limitations and Future Work}
 The trajectories are synthetic, and learned models may partly fit the
-generator. Validation on DeepSense~6G~\cite{alkhateeb2023deepsense} real
+generator. In the held-out-regime experiment the classical trackers are
+re-tuned without the held-out regime. The networks, however, reuse
+hyperparameters selected on a validation set that contains it, so their
+held-out rows are mildly optimistic. Validation on DeepSense~6G~\cite{alkhateeb2023deepsense} real
 position and beam measurements is the next step. Multi-step prediction (lead
 time for beam training) and uncertainty-aware beam widening~\cite{beamguard2026}
 are natural extensions. The carrier is 60\,GHz; extending to sub-THz requires
