@@ -15,6 +15,8 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+from src.baselines import imm_stream
+
 
 def make_windows(observed, true, window):
     """Slide a window over one trajectory.
@@ -96,3 +98,74 @@ class WindowDataset(Dataset):
 
     def __getitem__(self, i):
         return self.X[i], self.y[i]
+
+
+# --- Whole-trajectory (streaming) sequences ---------------------------------
+#
+# The windowed dataset above re-processes W positions every slot and trains on
+# the last step only, which throws away both of minLSTM's advantages. Here one
+# sample is one whole trajectory with a target at every step. Sequence index k
+# is slot t = k + 1: the model has seen obs[0..t] and predicts true[t+1].
+# Inputs are per-step displacements, so nothing depends on where in the
+# corridor the user is and no window anchor is needed.
+
+WARMUP = 10  # steps excluded from loss and metrics, for every method alike
+
+
+def _trajectory_arrays(traj, mode, imm_params):
+    obs = np.asarray(traj["observed"], dtype=float)[:, :2]
+    true = np.asarray(traj["true"], dtype=float)[:, :2]
+    t = np.arange(1, len(obs) - 1)
+    step = obs[t] - obs[t - 1]
+    if mode == "direct":
+        X, anchors = step, obs[t]
+    elif mode == "hybrid":
+        if imm_params is None:
+            raise ValueError("mode='hybrid' needs imm_params")
+        imm = imm_stream(obs, **imm_params)
+        # The model sees the tracker's prediction and learns its correction.
+        X, anchors = np.concatenate([step, imm[t] - obs[t]], axis=1), imm[t]
+    else:
+        raise ValueError(f"unknown mode {mode!r}; choose 'direct' or 'hybrid'")
+    truth = true[t + 1]
+    return X, truth - anchors, anchors, truth
+
+
+def build_sequences(corpus, mode="direct", imm_params=None, scales=None, warmup=WARMUP):
+    """One sample per trajectory, a target at every step.
+
+    Scales are fitted per axis on this corpus when absent (pass the training
+    split's scales for val/test). Returns a dict; see the module notes above.
+    """
+    if mode == "hybrid" and imm_params is None:
+        raise ValueError("mode='hybrid' needs imm_params")
+    lengths = {len(t["observed"]) for t in corpus}
+    if len(lengths) != 1:
+        raise ValueError(f"all trajectories must have the same length, got {sorted(lengths)}")
+    parts = [_trajectory_arrays(t, mode, imm_params) for t in corpus]
+    X, Y, anchors, truth = (np.stack([p[i] for p in parts]) for i in range(4))
+    if scales is None:
+        scales = {"x": fit_scale(X), "y": fit_scale(Y[:, warmup:])}
+    return {"X": X / scales["x"], "Y": Y / scales["y"], "anchors": anchors,
+            "truth": truth, "scales": scales, "warmup": warmup}
+
+
+def masked_mae_abs(pred_abs, truth, warmup=WARMUP):
+    """Mean Euclidean error in metres over steps k >= warmup."""
+    error = np.asarray(pred_abs) - np.asarray(truth)
+    return float(np.mean(np.linalg.norm(error, axis=-1)[..., warmup:]))
+
+
+def masked_mae_metres(pred_scaled, data):
+    """Model output (scaled, relative to anchor) -> metres -> masked MAE."""
+    pred_abs = data["anchors"] + np.asarray(pred_scaled) * data["scales"]["y"]
+    return masked_mae_abs(pred_abs, data["truth"], data["warmup"])
+
+
+def stream_to_sequence(stream_pred):
+    """Row t of a streaming tracker predicts t+1; keep slots t = 1..T-2."""
+    return np.asarray(stream_pred)[1:-1]
+
+
+def sequence_truth(traj):
+    return np.asarray(traj["true"], dtype=float)[2:, :2]
