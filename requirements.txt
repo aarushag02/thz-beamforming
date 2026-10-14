@@ -1,0 +1,16 @@
+# Core (GCP T4: install torch matching the instance CUDA build)
+torch>=2.3
+numpy>=1.26
+scipy>=1.11
+matplotlib>=3.8
+
+# Hyperparameter search
+optuna>=3.6
+
+# Digital twin / channel data
+deepmimo==4.0.0
+
+# Notebooks and tests
+jupyter
+ipykernel
+pytest>=8.0

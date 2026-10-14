@@ -3,6 +3,38 @@
 
 A complete end-to-end predictive beamforming system for 6G THz wireless communications, built entirely with open-source tools and runnable on consumer hardware (Apple Silicon MacBook Air M4).
 
+---
+
+> ### ⚠️ Status: results below are superseded
+>
+> A methodological audit (see `notebooks/5_minlstm_study.ipynb`) found three
+> defects that make the v1 results in this README unsafe to cite. They are kept
+> here for provenance, not as findings.
+>
+> **1. The digital-twin lookup returned the true future channel.**
+> `3_beamforming.ipynb` resolved predicted positions against
+> `positions_2d[:current_t+2]`, a slice that contains the true next position.
+> Trajectory points are ~1.5 m apart and prediction error is ~0.1 m, so the
+> lookup returned index `t+1` nearly always. The reported **+0.05 to +0.11 dB
+> "predictive gain" is an oracle measurement**, independent of the LSTM. It also
+> explains why MAE 0.104 and 0.154 gave identical gains, and why only the zigzag
+> case (MAE 0.703, straddling the half-step threshold) ever lost.
+>
+> **2. Classical baselines beat the LSTM on every trajectory.** No non-learned
+> comparator was ever run. A zero-parameter least-squares fit over the same
+> 10-point window reaches **0.062 m** where the LSTM reports 0.107 m; two-point
+> constant-velocity extrapolation reaches **0.032 m** on the sharp turn against
+> the LSTM's 0.104 m, and **0.191 m** on the zigzag against 0.703 m.
+>
+> **3. The validation split leaked.** The tail-20% split placed window 152 in
+> validation and window 151 in training; consecutive windows share 9 of their 10
+> positions, so validation loss tracked training loss by construction.
+>
+> Work continues in `src/` and notebooks 5-6 with whole-trajectory splits, tuned
+> classical baselines, noisy position observations, and a repaired twin lookup.
+
+---
+
 The core idea: instead of pointing the antenna beam at where the user **is**, predict where they will **be next** and point there already. An LSTM neural network handles the prediction, and a DeepMIMO digital twin provides physically accurate channel data for any position in the scenario — including positions the user hasn't visited yet.
 
 ---
@@ -224,6 +256,56 @@ where `h*` is the element-wise complex conjugate. This is the SNR-optimal single
 
 Training time: approximately 4 minutes for 500 epochs on Apple M4 MPS.  
 No GPU cluster or cloud compute required.
+
+---
+
+---
+
+## v2: Architecture study (`src/` + notebooks 5-6)
+
+The v1 notebooks are preserved. New work is library code so the parallel scan
+can be unit-tested and the hyperparameter search is reproducible.
+
+```
+src/
+├── minrnn.py        # minLSTM: vanilla + log-space, sequential + parallel scan
+├── models.py        # cuDNN LSTM, plain-PyTorch LSTM, minLSTM, registry
+├── baselines.py     # hold, constant-velocity, LS-linear, quadratic, Kalman CV
+├── trajectories.py  # maneuvering coordinated-turn corpus + localisation noise
+├── data.py          # windowing, separate input/target scales, honest splits
+├── train.py         # one seeded training loop shared by every architecture
+├── twin.py          # full-grid DeepMIMO lookup (fixes defect 1)
+└── beamforming.py   # MRT, SNR, HPBW-normalised misalignment (fixes BS origin)
+
+notebooks/
+├── 5_minlstm_study.ipynb      # baselines, scan tests, T4 timing, Optuna search
+└── 6_beamforming_eval.ipynb   # repaired twin, Nt = 8..128 sweep, lead time
+```
+
+### What changed and why
+
+| Change | Reason |
+|---|---|
+| Inputs are noisy observations (σ ≈ 0.5 m); targets stay true positions | A base station never has exact UE coordinates. With exact inputs there is little for a sequence model to learn. |
+| Maneuvering coordinated-turn corpus replaces 3 hand-drawn paths | Smooth paths are tracked to 0.03-0.11 m by arithmetic. A piecewise-constant turn rate is the case a constant-velocity filter cannot follow. |
+| Whole trajectories held out; regimes held out separately | Overlapping windows made the old validation split meaningless. |
+| Separate scales for inputs and targets | At W=20 a window spans ±29 m while the target is one 1.6 m step. One shared scale squashed targets to 0.055 — the same vanishing-signal failure v1 solved at W=10, returning as W grows. |
+| Baselines are tuned, not strawmen | Window length and Kalman process noise get the same search budget as the networks. |
+| log-space scan is the minLSTM default | The vanilla scan divides by `cumprod(f')`: ~1e-10 at 20 steps, NaN gradients by 80 — inside the window range this study uses. |
+| SNR evaluated at Nt = 8…128, misalignment in beamwidths | At Nt=8 a 1.6 m step is 3.6% of a beamwidth, so the metric cannot resolve any predictor difference. At Nt=128 it is 57%. |
+
+### Running
+
+```bash
+pip install -r requirements.txt
+pytest -q                         # 52 tests; the scan equivalence tests matter most
+jupyter lab notebooks/5_minlstm_study.ipynb
+```
+
+`5_minlstm_study.ipynb` has `QUICK = True` at the top — it runs end to end in a
+few minutes to verify nothing is broken before committing GPU hours. Set it to
+`False` for the real study. Notebook 6 additionally needs the `O1_60` scenario,
+which `1_data_generation.ipynb` downloads (~2.3 GB).
 
 ---
 
