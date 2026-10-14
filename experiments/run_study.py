@@ -36,11 +36,11 @@ from src.train import predict_seq, resolve_device, set_seed, train_seq_model
 from src.trajectories import REGIMES, generate_corpus
 
 SCALES = {
-    "smoke": dict(n_traj=24, trials=2, seeds=1, epochs=3, patience=2,
+    "smoke": dict(n_traj=24, trials=2, seeds=1, gen_seeds=1, epochs=3, patience=2,
                   seq_lens=[16, 64], bench_iters=2, latency_iters=20),
-    "quick": dict(n_traj=90, trials=4, seeds=2, epochs=40, patience=8,
+    "quick": dict(n_traj=90, trials=4, seeds=2, gen_seeds=2, epochs=150, patience=20,
                   seq_lens=[16, 32, 64, 128, 256, 512], bench_iters=10, latency_iters=200),
-    "full": dict(n_traj=600, trials=30, seeds=5, epochs=200, patience=20,
+    "full": dict(n_traj=600, trials=20, seeds=5, gen_seeds=3, epochs=300, patience=30,
                  seq_lens=[16, 32, 64, 128, 256, 512, 1024, 2048, 4096],
                  bench_iters=20, latency_iters=1000),
 }
@@ -125,13 +125,16 @@ def phase_classical(val_c, test_c):
 
 # --- learned -----------------------------------------------------------------
 
+# A training sample is a whole trajectory, so `batch` counts trajectories and an
+# epoch is only n_traj/batch optimizer steps; small batches are needed to get
+# enough steps.
 def suggest(trial):
     return dict(
         hidden=trial.suggest_categorical("hidden", [32, 64, 128]),
         layers=trial.suggest_categorical("layers", [1, 2, 3]),
-        lr=trial.suggest_float("lr", 3e-4, 3e-3, log=True),
+        lr=trial.suggest_float("lr", 3e-4, 1e-2, log=True),
         dropout=trial.suggest_float("dropout", 0.0, 0.2),
-        batch=trial.suggest_categorical("batch", [16, 32, 64]),
+        batch=trial.suggest_categorical("batch", [4, 8, 16]),
         weight_decay=trial.suggest_categorical("weight_decay", [0.0, 1e-5, 1e-4]),
     )
 
@@ -253,7 +256,7 @@ def phase_generalisation(corpus, learned, cfg, device, seed):
                 datasets[entry["mode"]] = make_datasets(tr_c, va_c, unseen, entry["mode"], imm_params)
             data = datasets[entry["mode"]]
             maes = [evaluate(fit(entry["arch"], entry["params"], data, seed + s, cfg, device),
-                             data["test"], device)[0] for s in range(cfg["seeds"])]
+                             data["test"], device)[0] for s in range(cfg["gen_seeds"])]
             row[key] = float(np.mean(maes))
             detail["learned"][key] = dict(mae=maes, mean=row[key], std=float(np.std(maes)))
         rows.append(row)
