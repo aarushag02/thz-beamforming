@@ -25,6 +25,8 @@ def label(key):
 
 def table(caption, ref, columns, rows):
     head = " & ".join(columns) + r" \\"
+    if not rows:   # an empty tabular body is a LaTeX error ("Misplaced \noalign")
+        rows = [(f"\\multicolumn{{{len(columns)}}}{{c}}{{---}}",)]
     body = "\n".join(" & ".join(r) + r" \\" for r in rows)
     return (f"\\begin{{table}}[t]\n\\centering\n\\caption{{{caption}}}\\label{{{ref}}}\n"
             f"\\begin{{tabular}}{{l{'r' * (len(columns) - 1)}}}\n\\toprule\n{head}\n\\midrule\n"
@@ -52,7 +54,8 @@ def compute(bench):
 
 def generalisation(rows_in):
     if not rows_in:
-        return table("Held-out mobility regime.", "tab:generalisation", ["Method"], [])
+        return table("MAE (m) on a mobility regime never seen in training.", "tab:generalisation",
+                     ["Method"], [])
     keys = [k for k in rows_in[0] if k not in ("regime", "n_unseen")]
     rows = [(label(k), *[f"{r[k]:.3f}" for r in rows_in]) for k in keys]
     return table("MAE (m) on a mobility regime never seen in training.", "tab:generalisation",

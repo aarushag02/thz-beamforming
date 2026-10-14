@@ -50,3 +50,63 @@ def test_make_tables_writes_tex(tmp_path):
     assert "0.280" in acc and "IMM" in acc and r"\pm" in acc
     assert (tables / "compute.tex").exists() and (tables / "generalisation.tex").exists()
     assert not (tables / "beam.tex").exists()
+    for name in ("accuracy", "compute", "generalisation"):
+        _assert_valid_tex((tables / f"{name}.tex").read_text())
+
+
+def _assert_valid_tex(text):
+    """Structural LaTeX sanity: no stray control characters, well-formed tabular rows."""
+    assert not any(c in text for c in ("\x08", "\t", "\x0c")), "escape-mangled backslash"
+    for macro in (r"\toprule", r"\midrule", r"\bottomrule"):
+        assert macro in text
+    lines = text.splitlines()
+    begin = next(i for i, ln in enumerate(lines) if ln.startswith(r"\begin{tabular}"))
+    end = next(i for i, ln in enumerate(lines) if ln.startswith(r"\end{tabular}"))
+    assert all(ln.strip() for ln in lines[begin:end + 1]), "blank line inside tabular"
+    n_cols = len(lines[begin].split("{")[2].rstrip("}"))
+    top, bottom = lines.index(r"\toprule"), lines.index(r"\bottomrule")
+    rows = [ln for ln in lines[top + 1:bottom] if ln != r"\midrule"]
+    assert len(rows) >= 2                       # header + at least one (possibly placeholder) row
+    for row in rows:
+        assert row.endswith(r" \\")
+        if r"\multicolumn" not in row:
+            assert row.count("&") == n_cols - 1, row
+
+
+def test_make_tables_with_empty_sections_is_valid(tmp_path):
+    study = {"classical": {"imm": {"test_mae": 0.31, "params": {}}}, "learned": {},
+             "generalisation": [], "bench": {}}
+    res = tmp_path / "results"
+    res.mkdir()
+    (res / "streaming_study.json").write_text(json.dumps(study))
+    make_tables.main(["--results", str(res), "--paper", str(tmp_path / "paper")])
+    tables = tmp_path / "paper" / "tables"
+    for name in ("accuracy", "compute", "generalisation"):
+        _assert_valid_tex((tables / f"{name}.tex").read_text())
+    assert "---" in (tables / "generalisation.tex").read_text()
+    assert "---" in (tables / "compute.tex").read_text()
+
+
+def test_make_tables_writes_beam_table_when_beam_eval_exists(tmp_path):
+    res = tmp_path / "results"
+    res.mkdir()
+    _fake_predictions(res / "streaming_predictions.npz")
+    beam_eval.main(["--results", str(res), "--bs-pos", "235", "350"])
+    (res / "streaming_study.json").write_text(json.dumps(
+        {"classical": {"imm": {"test_mae": 0.31, "params": {}}}, "learned": {},
+         "generalisation": [], "bench": {}}))
+    make_tables.main(["--results", str(res), "--paper", str(tmp_path / "paper")])
+    beam_tex = (tmp_path / "paper" / "tables" / "beam.tex").read_text()
+    _assert_valid_tex(beam_tex)
+    assert "Reactive (hold)" in beam_tex and "IMM (CV+CT)" in beam_tex and "128" in beam_tex
+
+
+def test_beam_eval_ignores_warmup_slots(tmp_path):
+    truth = np.stack([np.stack([np.full(15, 260.0), np.linspace(400, 420, 15)], 1)] * 2)
+    pred = truth.copy()
+    pred[:, :10] += 1000.0                      # garbage inside the warm-up window only
+    np.savez(tmp_path / "streaming_predictions.npz", truth=truth,
+             regimes=np.array(["cyclist", "vehicular"]), warmup=10, pred_warm=pred)
+    beam_eval.main(["--results", str(tmp_path), "--bs-pos", "235", "350"])
+    warm = json.loads((tmp_path / "beam_eval.json").read_text())["methods"]["warm"]
+    assert warm["misalign_bw"] == [0.0] * 5 and warm["outage"] == [0.0] * 5
