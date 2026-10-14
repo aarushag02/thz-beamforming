@@ -15,7 +15,7 @@ against plain_lstm measures the architecture. Report both.
 import torch
 import torch.nn as nn
 
-from src.minrnn import MinLSTMPredictor
+from src.minrnn import MinLSTMPredictor, MinLSTMSeq
 
 
 class LSTMPredictor(nn.Module):
@@ -70,6 +70,15 @@ class PlainLSTMLayer(nn.Module):
             outputs.append(h)
         return torch.stack(outputs, dim=1)
 
+    def step(self, x_t, state):
+        """One LSTM cell update; state is (h, c). Needs h @ W_hh every slot."""
+        h, c = state
+        gates = x_t @ self.weight_ih.T + self.bias_ih + h @ self.weight_hh.T + self.bias_hh
+        i, f, g, o = gates.chunk(4, dim=1)
+        c = torch.sigmoid(f) * c + torch.sigmoid(i) * torch.tanh(g)
+        h = torch.sigmoid(o) * torch.tanh(c)
+        return h, (h, c)
+
 
 class PlainLSTMPredictor(nn.Module):
     def __init__(self, input_size=2, hidden_size=64, num_layers=2, output_size=2,
@@ -101,6 +110,72 @@ class PlainLSTMPredictor(nn.Module):
         return self.fc(self.drop(x[:, -1, :]))
 
 
+class LSTMSeq(nn.Module):
+    """nn.LSTM emitting a prediction at every step; step() carries (h, c)."""
+
+    def __init__(self, input_size=2, hidden_size=64, num_layers=2, output_size=2,
+                 dropout=0.1):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True,
+                            dropout=dropout if num_layers > 1 else 0.0)
+        self.drop = nn.Dropout(dropout)
+        self.fc = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x, mode=None):
+        out, _ = self.lstm(x)
+        return self.fc(self.drop(out))
+
+    def init_state(self, batch, device=None, dtype=torch.float32):
+        zeros = torch.zeros(self.num_layers, batch, self.hidden_size, device=device, dtype=dtype)
+        return zeros, zeros.clone()
+
+    def step(self, x_t, state):
+        out, state = self.lstm(x_t.unsqueeze(1), state)
+        return self.fc(self.drop(out[:, 0])), state
+
+
+class PlainLSTMSeq(nn.Module):
+    """Hand-written LSTM emitting every step -- the architecture-fair timing
+    comparator for minLSTM_seq, as PlainLSTMPredictor is for the windowed one."""
+
+    def __init__(self, input_size=2, hidden_size=64, num_layers=2, output_size=2,
+                 dropout=0.1):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        sizes = [input_size] + [hidden_size] * num_layers
+        self.layers = nn.ModuleList(
+            PlainLSTMLayer(sizes[i], sizes[i + 1]) for i in range(num_layers)
+        )
+        self.drop = nn.Dropout(dropout)
+        self.fc = nn.Linear(hidden_size, output_size)
+
+    load_state_dict_from_cudnn = PlainLSTMPredictor.load_state_dict_from_cudnn
+
+    def forward(self, x, mode=None):
+        for n, layer in enumerate(self.layers):
+            x = layer(x)
+            if n < self.num_layers - 1:
+                x = self.drop(x)
+        return self.fc(self.drop(x))
+
+    def init_state(self, batch, device=None, dtype=torch.float32):
+        return [(torch.zeros(batch, self.hidden_size, device=device, dtype=dtype),
+                 torch.zeros(batch, self.hidden_size, device=device, dtype=dtype))
+                for _ in self.layers]
+
+    def step(self, x_t, state):
+        new_state = []
+        for n, layer in enumerate(self.layers):
+            x_t, s = layer.step(x_t, state[n])
+            new_state.append(s)
+            if n < self.num_layers - 1:
+                x_t = self.drop(x_t)
+        return self.fc(self.drop(x_t)), new_state
+
+
 MODELS = {
     "lstm": LSTMPredictor,
     "plain_lstm": PlainLSTMPredictor,
@@ -109,6 +184,11 @@ MODELS = {
     "minlstm": MinLSTMPredictor,
     "minlstm_log": MinLSTMPredictor,
     "minlstm_vanilla": lambda **kw: MinLSTMPredictor(log_space=False, **kw),
+    # Streaming variants: a prediction at every step, step() for O(1) inference.
+    "lstm_seq": LSTMSeq,
+    "plain_lstm_seq": PlainLSTMSeq,
+    "minlstm_seq": MinLSTMSeq,
+    "minlstm_seq_res": lambda **kw: MinLSTMSeq(residual_norm=True, **kw),
 }
 
 

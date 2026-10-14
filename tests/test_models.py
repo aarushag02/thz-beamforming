@@ -34,6 +34,8 @@ def test_plain_and_fused_lstm_have_identical_parameter_counts():
 def test_registry_builds_every_architecture_with_a_common_interface():
     x = torch.randn(4, 10, 2)
 
-    for name in MODELS:
+    # The *_seq models emit a prediction at every step, (B, L, 2); their
+    # interface is covered in test_seq_models.py.
+    for name in (n for n in MODELS if not n.endswith("_seq") and not n.endswith("_seq_res")):
         model = build_model(name, hidden_size=32, num_layers=2)
         assert model(x).shape == (4, 2), f"{name} returned the wrong shape"

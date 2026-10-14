@@ -91,6 +91,15 @@ class MinLSTMLayer(nn.Module):
             outputs.append(h)
         return torch.stack(outputs, dim=1)
 
+    def step(self, x_t, h):
+        """One recurrent update, x_t (batch, input) -> h (batch, hidden).
+
+        This is the whole per-slot cost of streaming inference: three small
+        linears on x_t and an elementwise blend, with no h-dependent matmul.
+        """
+        f_prime, i_prime = self.normalised_gates(x_t)
+        return f_prime * h + i_prime * self.candidate(x_t)
+
     def forward_parallel(self, x, h_0=None):
         """Same recurrence as a prefix scan over the sequence axis."""
         if self.log_space:
@@ -177,3 +186,74 @@ class MinLSTMPredictor(nn.Module):
             if n < self.num_layers - 1:
                 x = self.drop(x)
         return self.fc(self.drop(x[:, -1, :]))
+
+
+class MinLSTMSeq(nn.Module):
+    """Stacked minLSTM emitting a prediction at every step.
+
+    Trained with the parallel scan over whole trajectories; deployed with
+    step(), which carries one hidden vector per layer and costs O(1) per slot
+    regardless of how long the user has been tracked.
+
+    residual_norm=True wraps each layer as x + layer(LayerNorm(x)) after an
+    input projection, the block structure the minLSTM paper uses for deeper
+    stacks. Without it, depth > 2 stacks bare layers.
+    """
+
+    def __init__(self, input_size=2, hidden_size=64, num_layers=2, output_size=2,
+                 dropout=0.1, log_space=True, residual_norm=False):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.residual_norm = residual_norm
+        if residual_norm:
+            self.proj = nn.Linear(input_size, hidden_size)
+            self.norms = nn.ModuleList(nn.LayerNorm(hidden_size) for _ in range(num_layers))
+            self.final_norm = nn.LayerNorm(hidden_size)
+            sizes = [hidden_size] * (num_layers + 1)
+        else:
+            sizes = [input_size] + [hidden_size] * num_layers
+        self.layers = nn.ModuleList(
+            MinLSTMLayer(sizes[i], sizes[i + 1], log_space=log_space)
+            for i in range(num_layers)
+        )
+        self.drop = nn.Dropout(dropout)
+        self.fc = nn.Linear(hidden_size, output_size)
+
+    def _combine(self, n, x, h):
+        """Feed layer n's output h forward, given that layer's input x."""
+        if self.residual_norm:
+            return x + self.drop(h)
+        return self.drop(h) if n < self.num_layers - 1 else h
+
+    def _layer_input(self, n, x):
+        return self.norms[n](x) if self.residual_norm else x
+
+    def _head(self, x):
+        if self.residual_norm:
+            x = self.final_norm(x)
+        return self.fc(self.drop(x))
+
+    def forward(self, x, mode="parallel"):
+        if mode not in ("parallel", "sequential"):
+            raise ValueError(f"unknown mode {mode!r}")
+        if self.residual_norm:
+            x = self.proj(x)
+        for n, layer in enumerate(self.layers):
+            run = layer.forward_parallel if mode == "parallel" else layer.forward_sequential
+            x = self._combine(n, x, run(self._layer_input(n, x)))
+        return self._head(x)
+
+    def init_state(self, batch, device=None, dtype=torch.float32):
+        return [torch.zeros(batch, self.hidden_size, device=device, dtype=dtype)
+                for _ in self.layers]
+
+    def step(self, x_t, state):
+        if self.residual_norm:
+            x_t = self.proj(x_t)
+        new_state = []
+        for n, layer in enumerate(self.layers):
+            h = layer.step(self._layer_input(n, x_t), state[n])
+            new_state.append(h)
+            x_t = self._combine(n, x_t, h)
+        return self._head(x_t), new_state
