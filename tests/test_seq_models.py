@@ -85,3 +85,46 @@ def test_minlstm_seq_rejects_unknown_mode():
 def test_existing_registry_entries_unchanged():
     for name in ("lstm", "plain_lstm", "minlstm", "minlstm_vanilla"):
         assert build_model(name)(torch.randn(2, 10, 2)).shape == (2, 2)
+
+
+# --- CUDA (skipped without a GPU; these run on the VM) -----------------------
+
+needs_cuda = pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
+
+
+@needs_cuda
+@pytest.mark.parametrize("name", SEQ)
+def test_cuda_streaming_step_matches_full_forward(name):
+    torch.manual_seed(1)
+    model = build_model(name, input_size=2, hidden_size=16, num_layers=2,
+                        dropout=0.0).to("cuda").eval()
+    x = torch.randn(3, 40, 2, device="cuda")
+    with torch.no_grad():
+        state = model.init_state(3, device="cuda")
+        outs = []
+        for k in range(x.shape[1]):
+            y, state = model.step(x[:, k], state)
+            outs.append(y)
+        assert torch.allclose(torch.stack(outs, dim=1), model(x), atol=1e-4)
+
+
+@needs_cuda
+@pytest.mark.parametrize("residual_norm", [False, True])
+def test_cuda_minlstm_seq_parallel_matches_sequential(residual_norm):
+    torch.manual_seed(2)
+    model = MinLSTMSeq(input_size=2, hidden_size=16, num_layers=3, dropout=0.0,
+                       residual_norm=residual_norm).to("cuda").eval()
+    x = torch.randn(2, 198, 2, device="cuda")
+    with torch.no_grad():
+        assert torch.allclose(model(x, mode="parallel"), model(x, mode="sequential"), atol=1e-4)
+
+
+@needs_cuda
+def test_cuda_minlstm_seq_gradients_are_finite():
+    torch.manual_seed(5)
+    model = build_model("minlstm_seq", input_size=2, hidden_size=16, num_layers=2,
+                        dropout=0.0).to("cuda")
+    x = torch.randn(8, 198, 2, device="cuda")
+    model(x).sum().backward()
+    grads = [p.grad for p in model.parameters()]
+    assert all(g is not None and torch.isfinite(g).all() for g in grads)

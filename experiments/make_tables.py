@@ -14,6 +14,7 @@ LABELS = {
     "ls_linear": "LS line fit", "kalman": "Kalman (CV)", "imm": "IMM (CV+CT)",
     "lstm_seq_direct": "LSTM", "minlstm_seq_direct": "minLSTM",
     "minlstm_seq_res_direct": "minLSTM-res",
+    "plain_lstm_seq_direct": "LSTM (plain PyTorch)",
     "lstm_seq_hybrid": "IMM + LSTM", "minlstm_seq_hybrid": "IMM + minLSTM",
     "minlstm_seq_res_hybrid": "IMM + minLSTM-res",
 }

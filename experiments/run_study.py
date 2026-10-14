@@ -160,6 +160,34 @@ def evaluate(model, split, device):
     return masked_mae_metres(pred, split), split["anchors"] + pred * split["scales"]["y"]
 
 
+def stream_outputs(model, X, device):
+    """Raw model outputs (N, L, out) from init_state + step() over all trajectories at once
+    (batch = every trajectory, loop over the L steps) -- the deployed inference path."""
+    model = model.to(device).eval()
+    X = torch.tensor(np.asarray(X), dtype=torch.float32, device=device)
+    with torch.no_grad():
+        state = model.init_state(X.shape[0], device=device)
+        outs = []
+        for k in range(X.shape[1]):
+            y, state = model.step(X[:, k], state)
+            outs.append(y)
+    return torch.stack(outs, dim=1).cpu().numpy()
+
+
+def stream_compare(model, split, device):
+    """(stream MAE in metres, max |step - parallel| of the raw outputs)."""
+    stepped = stream_outputs(model, split["X"], device)
+    parallel = predict_seq(model, split["X"], device=device)
+    return masked_mae_metres(stepped, split), float(np.max(np.abs(stepped - parallel)))
+
+
+def stream_check(model, split, device):
+    """Test MAE (metres) when the model is run with init_state + step(), converted to metres
+    exactly like `evaluate`. Equal to evaluate()'s MAE iff training and inference compute the
+    same function."""
+    return stream_compare(model, split, device)[0]
+
+
 def make_datasets(train_c, val_c, test_c, mode, imm_params):
     tr = build_sequences(train_c, mode, imm_params)
     return {"train": tr,
@@ -191,43 +219,77 @@ def save_checkpoint(model, path):
     torch.save({k: v.detach().cpu() for k, v in model.state_dict().items()}, path)
 
 
+def regime_summary(per_seed):
+    """Per-seed per-regime MAE dicts -> (mean dict, std dict), regime -> float."""
+    regimes = sorted(set().union(*per_seed))
+    vals = {r: [d[r] for d in per_seed if r in d] for r in regimes}
+    return ({r: float(np.mean(v)) for r, v in vals.items()},
+            {r: float(np.std(v)) for r, v in vals.items()})
+
+
 def phase_learned(datasets, test_c, cfg, device, seed, models_dir, learned, on_done, resume=False):
     """Fill `learned` in place (so partial results survive a crash); returns test predictions.
 
+    Predictions are keyed `<key>` (seed 0) and `<key>_s<seed>` (every seed). Every seed's
+    checkpoint is saved as `<key>_s<seed>.pt`; `<key>.pt` is seed 0 and is what --resume checks.
+
     With resume=True, a key already in `learned` whose checkpoint exists is not retrained: its
-    model is reloaded and re-evaluated only to regenerate the test predictions.
+    models are reloaded and re-evaluated only to regenerate the test predictions (from the
+    per-seed checkpoints when they exist, else seed 0 only).
     """
     preds = {}
     for mode, arch in product(MODES, ARCHS):
         key = f"{arch}_{mode}"
         data = datasets[mode]
         ckpt = models_dir / f"{key}.pt"
+        n_in = data["train"]["X"].shape[-1]
         if resume and key in learned and ckpt.exists():
-            model = make_model(arch, learned[key]["params"], data["train"]["X"].shape[-1])
-            model.load_state_dict(torch.load(ckpt, map_location="cpu"))
-            model.to(device)
-            preds[key] = evaluate(model, data["test"], device)[1]
+            def reload(path):
+                m = make_model(arch, learned[key]["params"], n_in)
+                m.load_state_dict(torch.load(path, map_location="cpu"))
+                return m.to(device)
+            seed_ckpts = [(s, models_dir / f"{key}_s{s}.pt") for s in range(cfg["seeds"])]
+            if all(path.exists() for _, path in seed_ckpts):
+                for s, path in seed_ckpts:
+                    preds[f"{key}_s{s}"] = evaluate(reload(path), data["test"], device)[1]
+                preds[key] = preds[f"{key}_s0"]
+            else:
+                preds[key] = preds[f"{key}_s0"] = evaluate(reload(ckpt), data["test"], device)[1]
             log(f"learned {key:<24} resumed from {ckpt.name} (not retrained)")
             continue
+        t_key = time.time()
         params, best_val = search(arch, data, cfg, device, seed)
-        val_maes, test_maes, first = [], [], None
+        search_seconds = time.time() - t_key
+        val_maes, test_maes, regimes_by_seed, train_seconds = [], [], [], []
         for s in range(cfg["seeds"]):
+            t_fit = time.time()
             model = fit(arch, params, data, seed + s, cfg, device)
+            train_seconds.append(time.time() - t_fit)
             val_maes.append(evaluate(model, data["val"], device)[0])
             test_mae, test_pred = evaluate(model, data["test"], device)
             test_maes.append(test_mae)
-            if first is None:
-                first = (model, test_pred)
-        model, test_pred = first
-        save_checkpoint(model, ckpt)
+            regimes_by_seed.append(per_regime(test_pred, test_c))
+            preds[f"{key}_s{s}"] = test_pred
+            save_checkpoint(model, models_dir / f"{key}_s{s}.pt")
+            if s == 0:
+                first = model
+                stream_mae, stream_diff = stream_compare(model, data["test"], device)
+        preds[key] = preds[f"{key}_s0"]
+        save_checkpoint(first, ckpt)
+        regime_mean, regime_std = regime_summary(regimes_by_seed)
         learned[key] = dict(arch=arch, mode=mode, params=params, search_best_val=best_val,
                             val_mae=val_maes, test_mae=test_maes,
                             test_mean=float(np.mean(test_maes)), test_std=float(np.std(test_maes)),
-                            per_regime=per_regime(test_pred, test_c),
-                            n_params=sum(p.numel() for p in model.parameters()))
-        preds[key] = test_pred
+                            per_regime=regime_mean, per_regime_std=regime_std,
+                            per_regime_seeds=regimes_by_seed,
+                            stream_mae=float(stream_mae), stream_max_abs_diff=stream_diff,
+                            train_seconds=train_seconds, search_seconds=search_seconds,
+                            n_params=sum(p.numel() for p in first.parameters()))
         on_done()
-        log(f"learned {key:<24} test {np.mean(test_maes):.3f} +- {np.std(test_maes):.3f} m  {params}")
+        log(f"learned {key:<24} test {np.mean(test_maes):.3f} +- {np.std(test_maes):.3f} m  "
+            f"stream {stream_mae:.3f} m (max|d| {stream_diff:.1e})  "
+            f"wall {time.time() - t_key:.0f}s (search {search_seconds:.0f}s, "
+            f"train {sum(train_seconds):.0f}s)  {params}")
     return preds
 
 
@@ -374,6 +436,7 @@ def main(argv=None):
     study = dict(meta=dict(scale=scale, cfg=cfg, corpus=CORPUS, seed=args.seed, warmup=WARMUP,
                            device=str(device), torch=torch.__version__,
                            python=platform.python_version(),
+                           cpu_threads=torch.get_num_threads(),
                            gpu=torch.cuda.get_device_name(0) if device.type == "cuda" else None,
                            started=time.strftime("%Y-%m-%d %H:%M:%S")),
                  classical={}, learned={}, generalisation=[], generalisation_detail=[], bench={})
@@ -395,7 +458,9 @@ def main(argv=None):
     train_c, val_c, test_c = split_by_trajectory(corpus, (0.7, 0.15, 0.15), rng=rng)
     log(f"corpus {len(train_c)}/{len(val_c)}/{len(test_c)} train/val/test trajectories")
 
+    t_phase = time.time()
     study["classical"], classical_preds, _ = phase_classical(val_c, test_c)
+    study["meta"]["classical_total_seconds"] = time.time() - t_phase
     save_json(json_path, study)
 
     imm_params = dict(dt=CORPUS["dt"], sigma=CORPUS["sigma"], **study["classical"]["imm"]["params"])
@@ -411,8 +476,10 @@ def main(argv=None):
     plot_accuracy(study, out / "streaming_accuracy.png")
 
     if not args.skip_generalisation:
+        t_phase = time.time()
         study["generalisation"], study["generalisation_detail"] = phase_generalisation(
             corpus, study["learned"], cfg, device, args.seed)
+        study["meta"]["generalisation_total_seconds"] = time.time() - t_phase
         save_json(json_path, study)
         plot_generalisation(study["generalisation"], out / "streaming_generalisation.png")
 

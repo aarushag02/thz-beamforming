@@ -10,6 +10,7 @@ The SNR sweep through the ray-traced twin is notebook 6.
 import argparse
 import json
 import pathlib
+import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -65,7 +66,8 @@ def main(argv=None):
     data = np.load(results / "streaming_predictions.npz")
     truth, warmup = data["truth"], int(data["warmup"])
     methods = {k[len("pred_"):]: evaluate(data[k], truth, warmup, bs_pos)
-               for k in data.files if k.startswith("pred_")}
+               for k in data.files
+               if k.startswith("pred_") and not re.search(r"_s\d+$", k)}
     out = {"bs_pos": bs_pos.tolist(), "bs_source": source, "n_tx": N_TX, "methods": methods}
     (results / "beam_eval.json").write_text(json.dumps(out, indent=2))
     for name, rows in methods.items():

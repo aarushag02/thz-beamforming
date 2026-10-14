@@ -22,6 +22,17 @@ def test_beam_eval_ranks_better_predictor_lower(tmp_path):
     assert hold["misalign_bw"][-1] > hold["misalign_bw"][0]   # narrower beams, more beamwidths
 
 
+def test_beam_eval_skips_per_seed_duplicates(tmp_path):
+    truth = np.stack([np.stack([np.full(15, 260.0), np.linspace(400, 420, 15)], 1)] * 2)
+    np.savez(tmp_path / "streaming_predictions.npz", truth=truth,
+             regimes=np.array(["cyclist", "vehicular"]), warmup=10,
+             pred_hold=truth, pred_minlstm_seq_direct=truth,
+             pred_minlstm_seq_direct_s0=truth, pred_minlstm_seq_direct_s12=truth)
+    beam_eval.main(["--results", str(tmp_path), "--bs-pos", "235", "350"])
+    methods = json.loads((tmp_path / "beam_eval.json").read_text())["methods"]
+    assert set(methods) == {"hold", "minlstm_seq_direct"}
+
+
 def test_beam_eval_without_position_exits_cleanly(tmp_path, monkeypatch):
     """Review focus 5."""
     _fake_predictions(tmp_path / "streaming_predictions.npz")
