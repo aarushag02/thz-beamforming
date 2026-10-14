@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from src.baselines import imm_stream
 from src.data import (WARMUP, build_sequences, masked_mae_abs, masked_mae_metres,
                       sequence_truth, stream_to_sequence)
 from src.trajectories import generate_corpus
@@ -41,6 +42,7 @@ def test_hybrid_has_four_features_and_is_causal():
     changed[0]["observed"][31:] += 20.0      # perturb obs from slot t=31 (k=30) on
     b = build_sequences(changed, mode="hybrid", imm_params=imm, scales={"x": np.ones(4), "y": np.ones(2)})
     assert np.allclose(a["X"][0, :30], b["X"][0, :30])
+    assert not np.allclose(a["X"][0, 30:], b["X"][0, 30:])   # and the change is visible afterwards
 
 
 def test_hybrid_requires_imm_params():
@@ -78,8 +80,17 @@ def test_masked_metrics_ignore_warmup_steps():
 
 
 def test_stream_helpers_align_with_sequences():
-    traj = _line(7)
-    stream = np.arange(14, dtype=float).reshape(7, 2)
-    assert np.allclose(stream_to_sequence(stream), stream[1:6])
-    assert np.allclose(sequence_truth(traj), traj["true"][2:])
+    """Classical scoring (stream_to_sequence / sequence_truth) must line up with
+    the learned path (build_sequences anchors / truth), or comparisons are unfair."""
+    corpus = generate_corpus(n=3, steps=60, rng=np.random.default_rng(3))
+    imm = {"dt": 0.1, "sigma": 0.5}
+    hyb = build_sequences(corpus, mode="hybrid", imm_params=imm)
+    direct = build_sequences(corpus, mode="direct")
+    for i, traj in enumerate(corpus):
+        stream = imm_stream(traj["observed"], **imm)
+        assert np.allclose(stream_to_sequence(stream), hyb["anchors"][i])
+        assert np.allclose(sequence_truth(traj), hyb["truth"][i])
+        assert np.allclose(sequence_truth(traj), direct["truth"][i])
+        # row t of the observed array is obs[t], the direct-mode anchor
+        assert np.allclose(stream_to_sequence(traj["observed"][:, :2]), direct["anchors"][i])
     assert WARMUP == 10
