@@ -36,6 +36,8 @@ def time_train_step(name, seq_len, batch=64, hidden=64, layers=2, device="cpu",
     device = torch.device(device)
     model = _model(name, input_size, hidden, layers, device)
     try:
+        if compile:
+            torch._dynamo.reset()  # else the recompile limit silently falls back to eager mid-sweep
         forward = torch.compile(model) if compile else model
         opt = torch.optim.Adam(model.parameters())
         x = torch.randn(batch, seq_len, input_size, device=device)

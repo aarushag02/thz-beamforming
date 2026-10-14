@@ -47,10 +47,12 @@ SCALES = {
 CORPUS = dict(steps=200, sigma=0.5, dt=0.1)
 ARCHS = ["lstm_seq", "minlstm_seq", "minlstm_seq_res"]
 MODES = ["direct", "hybrid"]
-KF_Q = [0.1, 1.0, 10.0, 100.0, 1000.0]
-IMM_GRID = dict(q=[0.3, 3.0, 30.0], omega=[0.1, 0.25, 0.5], p_stay=[0.9, 0.97])
-LS_WINDOWS = [3, 5, 10, 20]
+KF_Q = [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0]
+IMM_GRID = dict(q=[0.1, 0.3, 1.0, 3.0, 10.0, 30.0], omega=[0.1, 0.25, 0.5, 0.8],
+                p_stay=[0.8, 0.9, 0.95, 0.97, 0.99])
+LS_WINDOWS = [3, 5, 10, 20, 40]
 BENCH_ARCHS = ["lstm_seq", "plain_lstm_seq", "minlstm_seq"]
+SEARCH_SEED_OFFSET = 1000   # search trials never share a seed with the reported runs
 COLOURS = {"lstm_seq": "#2a78d6", "plain_lstm_seq": "#eb6834", "minlstm_seq": "#1baf7a",
            "minlstm_seq_compiled": "#0f6e4c", "minlstm_seq_res": "#7a5cc4"}
 
@@ -99,13 +101,19 @@ def classical_predictors(dt, sigma):
     }
 
 
+def tune(candidates, val_trajs):
+    """Pick the (params, fn) candidate with the lowest validation MAE."""
+    val_truth = truths(val_trajs)
+    scored = [(masked_mae_abs(stream_preds(val_trajs, fn), val_truth), params, fn)
+              for params, fn in candidates]
+    return min(scored, key=lambda s: s[0])
+
+
 def phase_classical(val_c, test_c):
     results, preds, fns = {}, {}, {}
-    val_truth, test_truth = truths(val_c), truths(test_c)
+    test_truth = truths(test_c)
     for name, candidates in classical_predictors(CORPUS["dt"], CORPUS["sigma"]).items():
-        scored = [(masked_mae_abs(stream_preds(val_c, fn), val_truth), params, fn)
-                  for params, fn in candidates]
-        val_mae, params, fn = min(scored, key=lambda s: s[0])
+        val_mae, params, fn = tune(candidates, val_c)
         test_pred = stream_preds(test_c, fn)
         results[name] = dict(params=params, val_mae=val_mae,
                              test_mae=masked_mae_abs(test_pred, test_truth),
@@ -128,11 +136,14 @@ def suggest(trial):
     )
 
 
+def make_model(arch, params, input_size):
+    return build_model(arch, input_size=input_size, hidden_size=params["hidden"],
+                       num_layers=params["layers"], dropout=params["dropout"])
+
+
 def fit(arch, params, data, seed, cfg, device, callback=None):
     set_seed(seed)
-    model = build_model(arch, input_size=data["train"]["X"].shape[-1],
-                        hidden_size=params["hidden"], num_layers=params["layers"],
-                        dropout=params["dropout"])
+    model = make_model(arch, params, data["train"]["X"].shape[-1])
     train_seq_model(model, (data["train"]["X"], data["train"]["Y"]),
                     (data["val"]["X"], data["val"]["Y"]), warmup=WARMUP,
                     epochs=cfg["epochs"], batch_size=params["batch"], lr=params["lr"],
@@ -162,22 +173,39 @@ def search(arch, data, cfg, device, seed):
             if trial.should_prune():
                 raise optuna.TrialPruned()
 
-        model = fit(arch, params, data, seed, cfg, device, callback)
+        model = fit(arch, params, data, seed + SEARCH_SEED_OFFSET, cfg, device, callback)
         mae, _ = evaluate(model, data["val"], device)
         return mae if np.isfinite(mae) else float("inf")
 
     study = optuna.create_study(direction="minimize",
                                 sampler=optuna.samplers.TPESampler(seed=seed),
-                                pruner=optuna.pruners.MedianPruner(n_startup_trials=3))
+                                pruner=optuna.pruners.MedianPruner(n_startup_trials=3, n_warmup_steps=10))
     study.optimize(objective, n_trials=cfg["trials"], show_progress_bar=False)
     return dict(study.best_params), float(study.best_value)
 
 
-def phase_learned(datasets, test_c, cfg, device, seed, models_dir):
-    results, preds = {}, {}
+def save_checkpoint(model, path):
+    torch.save({k: v.detach().cpu() for k, v in model.state_dict().items()}, path)
+
+
+def phase_learned(datasets, test_c, cfg, device, seed, models_dir, learned, on_done, resume=False):
+    """Fill `learned` in place (so partial results survive a crash); returns test predictions.
+
+    With resume=True, a key already in `learned` whose checkpoint exists is not retrained: its
+    model is reloaded and re-evaluated only to regenerate the test predictions.
+    """
+    preds = {}
     for mode, arch in product(MODES, ARCHS):
         key = f"{arch}_{mode}"
         data = datasets[mode]
+        ckpt = models_dir / f"{key}.pt"
+        if resume and key in learned and ckpt.exists():
+            model = make_model(arch, learned[key]["params"], data["train"]["X"].shape[-1])
+            model.load_state_dict(torch.load(ckpt, map_location="cpu"))
+            model.to(device)
+            preds[key] = evaluate(model, data["test"], device)[1]
+            log(f"learned {key:<24} resumed from {ckpt.name} (not retrained)")
+            continue
         params, best_val = search(arch, data, cfg, device, seed)
         val_maes, test_maes, first = [], [], None
         for s in range(cfg["seeds"]):
@@ -188,35 +216,51 @@ def phase_learned(datasets, test_c, cfg, device, seed, models_dir):
             if first is None:
                 first = (model, test_pred)
         model, test_pred = first
-        torch.save(model.state_dict(), models_dir / f"{key}.pt")
-        results[key] = dict(arch=arch, mode=mode, params=params, search_best_val=best_val,
+        save_checkpoint(model, ckpt)
+        learned[key] = dict(arch=arch, mode=mode, params=params, search_best_val=best_val,
                             val_mae=val_maes, test_mae=test_maes,
                             test_mean=float(np.mean(test_maes)), test_std=float(np.std(test_maes)),
                             per_regime=per_regime(test_pred, test_c),
                             n_params=sum(p.numel() for p in model.parameters()))
         preds[key] = test_pred
-        log(f"learned {key:<24} test {np.mean(test_maes):.3f} ± {np.std(test_maes):.3f} m  {params}")
-    return results, preds
+        on_done()
+        log(f"learned {key:<24} test {np.mean(test_maes):.3f} +- {np.std(test_maes):.3f} m  {params}")
+    return preds
 
 
-def phase_generalisation(corpus, learned, classical_fns, imm_params, cfg, device, seed):
-    rows = []
+def phase_generalisation(corpus, learned, cfg, device, seed):
+    """Hold out one regime at a time. Everything that is tuned (Kalman, IMM, hence the hybrid
+    anchor) is re-tuned on the seen-regime validation split; learned hyperparameters are kept
+    from the main search. Returns (rows, details): rows hold one float per method."""
+    rows, details = [], []
+    cands = classical_predictors(CORPUS["dt"], CORPUS["sigma"])
     for regime in REGIMES:
         seen, unseen = split_by_regime(corpus, held_out=regime)
         if len(unseen) < 2 or len(seen) < 10:   # val split needs >= 2 trajectories
             continue
         tr_c, va_c, _ = split_by_trajectory(seen, (0.8, 0.2, 0.0), rng=np.random.default_rng(seed))
         row = dict(regime=regime, n_unseen=len(unseen))
+        detail = dict(regime=regime, n_unseen=len(unseen), classical={}, learned={})
+        unseen_truth, fns = truths(unseen), {}
         for name in ("kalman", "imm"):
-            row[name] = masked_mae_abs(stream_preds(unseen, classical_fns[name]), truths(unseen))
+            val_mae, params, fns[name] = tune(cands[name], va_c)
+            row[name] = masked_mae_abs(stream_preds(unseen, fns[name]), unseen_truth)
+            detail["classical"][name] = dict(params=params, val_mae=val_mae)
+        imm_params = dict(dt=CORPUS["dt"], sigma=CORPUS["sigma"], **detail["classical"]["imm"]["params"])
+        datasets = {}
         for key, entry in learned.items():
-            data = make_datasets(tr_c, va_c, unseen, entry["mode"], imm_params)
-            model = fit(entry["arch"], entry["params"], data, seed, cfg, device)
-            row[key] = evaluate(model, data["test"], device)[0]
+            if entry["mode"] not in datasets:
+                datasets[entry["mode"]] = make_datasets(tr_c, va_c, unseen, entry["mode"], imm_params)
+            data = datasets[entry["mode"]]
+            maes = [evaluate(fit(entry["arch"], entry["params"], data, seed + s, cfg, device),
+                             data["test"], device)[0] for s in range(cfg["seeds"])]
+            row[key] = float(np.mean(maes))
+            detail["learned"][key] = dict(mae=maes, mean=row[key], std=float(np.std(maes)))
         rows.append(row)
+        details.append(detail)
         log(f"held-out {regime}: " + "  ".join(f"{k}={v:.3f}" for k, v in row.items()
                                                if isinstance(v, float)))
-    return rows
+    return rows, details
 
 
 # --- compute -----------------------------------------------------------------
@@ -308,6 +352,8 @@ def parse_args(argv):
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--skip-bench", action="store_true")
     p.add_argument("--skip-generalisation", action="store_true")
+    p.add_argument("--resume", action="store_true",
+                   help="reuse learned results and checkpoints already in --out/--models")
     return p.parse_args(argv)
 
 
@@ -327,7 +373,17 @@ def main(argv=None):
                            python=platform.python_version(),
                            gpu=torch.cuda.get_device_name(0) if device.type == "cuda" else None,
                            started=time.strftime("%Y-%m-%d %H:%M:%S")),
-                 classical={}, learned={}, generalisation=[], bench={})
+                 classical={}, learned={}, generalisation=[], generalisation_detail=[], bench={})
+    if args.resume and json_path.exists():
+        previous = json.loads(json_path.read_text())
+        pm = previous["meta"]
+        if (pm["scale"], pm["seed"]) != (scale, args.seed):
+            raise SystemExit(f"--resume: {json_path} was written with scale={pm['scale']} "
+                             f"seed={pm['seed']}, not scale={scale} seed={args.seed}")
+        study["learned"] = previous.get("learned", {})
+        study["meta"]["started"] = pm.get("started", study["meta"]["started"])
+        study["meta"]["resumed"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        log(f"resuming: {len(study['learned'])} learned configs already in {json_path.name}")
     log(f"scale={scale} device={device} gpu={study['meta']['gpu']}")
 
     rng = np.random.default_rng(args.seed)
@@ -336,12 +392,14 @@ def main(argv=None):
     train_c, val_c, test_c = split_by_trajectory(corpus, (0.7, 0.15, 0.15), rng=rng)
     log(f"corpus {len(train_c)}/{len(val_c)}/{len(test_c)} train/val/test trajectories")
 
-    study["classical"], classical_preds, classical_fns = phase_classical(val_c, test_c)
+    study["classical"], classical_preds, _ = phase_classical(val_c, test_c)
     save_json(json_path, study)
 
     imm_params = dict(dt=CORPUS["dt"], sigma=CORPUS["sigma"], **study["classical"]["imm"]["params"])
     datasets = {mode: make_datasets(train_c, val_c, test_c, mode, imm_params) for mode in MODES}
-    study["learned"], learned_preds = phase_learned(datasets, test_c, cfg, device, args.seed, models_dir)
+    learned_preds = phase_learned(datasets, test_c, cfg, device, args.seed, models_dir,
+                                  study["learned"], lambda: save_json(json_path, study),
+                                  resume=args.resume)
     save_json(json_path, study)
 
     np.savez_compressed(out / "streaming_predictions.npz", truth=truths(test_c),
@@ -350,8 +408,8 @@ def main(argv=None):
     plot_accuracy(study, out / "streaming_accuracy.png")
 
     if not args.skip_generalisation:
-        study["generalisation"] = phase_generalisation(corpus, study["learned"], classical_fns,
-                                                       imm_params, cfg, device, args.seed)
+        study["generalisation"], study["generalisation_detail"] = phase_generalisation(
+            corpus, study["learned"], cfg, device, args.seed)
         save_json(json_path, study)
         plot_generalisation(study["generalisation"], out / "streaming_generalisation.png")
 
