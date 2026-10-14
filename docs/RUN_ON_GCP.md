@@ -109,6 +109,7 @@ python experiments/run_study.py --resume 2>&1 | tee -a results/full_run.log
 ## 6. Beam misalignment and tables
 
 ```bash
+python -m pip install --pre deepmimo                       # 4.0 is pre-release on PyPI
 python -c "import deepmimo as dm; dm.download('O1_60')"   # ~2.3 GB, once
 python experiments/beam_eval.py                           # BS position from o1_60 tx_pos
 python experiments/make_tables.py

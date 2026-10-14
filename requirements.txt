@@ -7,8 +7,9 @@ matplotlib>=3.8
 # Hyperparameter search
 optuna>=3.6
 
-# Digital twin / channel data
-deepmimo==4.0.0
+# Digital twin / channel data: optional, only for notebooks 1/6 and
+# experiments/beam_eval.py. PyPI has only 4.0 pre-releases, so install it
+# separately with:  python -m pip install --pre deepmimo
 
 # Notebooks and tests
 jupyter
