@@ -192,7 +192,11 @@ beamwidth?}
 
 \section{Limitations and Future Work}
 The trajectories are synthetic, and learned models may partly fit the
-generator. In the held-out-regime experiment the classical trackers are
+generator. The generator is also the coordinated-turn model with Markov-like
+turn-rate switches, which is the model class the IMM assumes, so the IMM is
+close to the best achievable predictor here; mobility the IMM does not model
+(stop-and-go, lane changes, map-constrained turns) is where a learned
+correction has room to help. In the held-out-regime experiment the classical trackers are
 re-tuned without the held-out regime. The networks, however, reuse
 hyperparameters selected on a validation set that contains it, so their
 held-out rows are mildly optimistic. Validation on DeepSense~6G~\cite{alkhateeb2023deepsense} real
