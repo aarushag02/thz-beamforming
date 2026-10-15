@@ -27,7 +27,9 @@ def bs_from_deepmimo():
     """BS (x, y) from the o1_60 scenario, or None if DeepMIMO is unavailable."""
     try:
         import deepmimo as dm
-        bs0 = dm.load("o1_60")[0]
+        # dataset[0] of a full load, as in 1_data_generation.ipynb, is TX set 10 / tx_idx 0.
+        # Load only its position: a full load needs tens of GB of RAM.
+        bs0 = dm.load("o1_60", tx_sets={10: [0]}, rx_sets={0: [0]}, matrices=["tx_pos"])
     except Exception:
         return None
     for key in ("tx_pos", "bs_pos", "txrx_pos"):
