@@ -182,8 +182,17 @@ direct? Report per-regime differences.}
   \caption{Training-step time versus sequence length.}
   \label{fig:train-step}
 \end{figure}
-\todo{State the crossover length where the scan overtakes the plain and cuDNN
-LSTM; the per-slot step versus window cost; and the MAC ratio.}
+Fig.~\ref{fig:train-step} shows training-step time for sequences of 16 to
+4096 slots. Up to 256 slots, both cuDNN LSTM and compiled minLSTM take about
+3\,ms per step, a cost set by fixed per-step overhead rather than by sequence
+length. Beyond that, time grows linearly for every model, but at different
+rates. The plain LSTM, which steps through time one slot at a time, takes
+39\,s per step at 4096 slots. Compiled minLSTM takes 56\,ms, about
+700$\times$ less. From 512 slots on, compiled minLSTM needs 7--9\% less time
+than cuDNN LSTM (55.7 vs.\ 60.9\,ms at 4096), without a hand-written fused
+kernel. In eager mode the scan is about 2.2$\times$ slower than cuDNN, so the
+compiler is needed for this result. \todo{per-slot step versus window cost and
+MAC ratio from the bench section of results/streaming\_study.json.}
 
 \subsection{Beam misalignment versus array size}
 \IfFileExists{tables/beam.tex}{\input{tables/beam}}{\todo{run beam\_eval.py}}
@@ -193,10 +202,10 @@ beamwidth?}
 \section{Limitations and Future Work}
 The trajectories are synthetic, and learned models may partly fit the
 generator. The generator is also the coordinated-turn model with Markov-like
-turn-rate switches, which is the model class the IMM assumes, so the IMM is
-close to the best achievable predictor here; mobility the IMM does not model
-(stop-and-go, lane changes, map-constrained turns) is where a learned
-correction has room to help. In the held-out-regime experiment the classical trackers are
+turn-rate switches, which is the model class the IMM assumes. The IMM is
+therefore a strong reference here, and a learned correction has little room to
+improve on it. Mobility the IMM does not model (stop-and-go, lane changes,
+map-constrained turns) should leave more room. In the held-out-regime experiment the classical trackers are
 re-tuned without the held-out regime. The networks, however, reuse
 hyperparameters selected on a validation set that contains it, so their
 held-out rows are mildly optimistic. Validation on DeepSense~6G~\cite{alkhateeb2023deepsense} real
