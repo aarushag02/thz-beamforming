@@ -1,0 +1,18 @@
+\begin{table}[t]
+\centering
+\caption{MAE (m) on a mobility regime never seen in training.}\label{tab:generalisation}
+\begin{tabular}{lrrr}
+\toprule
+Method & pedestrian & cyclist & vehicular \\
+\midrule
+Kalman (CV) & 0.333 & 0.376 & 0.335 \\
+IMM (CV+CT) & 0.279 & 0.275 & 0.283 \\
+LSTM & 0.310 & 0.298 & 1.024 \\
+minLSTM & 0.362 & 0.399 & 0.508 \\
+minLSTM-res & 0.354 & 0.383 & 0.994 \\
+IMM + LSTM & 0.288 & 0.270 & 0.306 \\
+IMM + minLSTM & 0.285 & 0.276 & 0.282 \\
+IMM + minLSTM-res & 0.289 & 0.276 & 0.281 \\
+\bottomrule
+\end{tabular}
+\end{table}

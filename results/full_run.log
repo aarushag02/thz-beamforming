@@ -1,0 +1,22 @@
+[    0.3s] scale=full device=cuda gpu=Tesla T4
+[   10.3s] corpus 420/90/90 train/val/test trajectories
+[   10.3s] classical hold               val 0.847 m  test 0.889 m  {}
+[   10.4s] classical constant_velocity  val 1.402 m  test 1.409 m  {}
+[   17.4s] classical ls_linear          val 0.361 m  test 0.350 m  {'window': 20}
+[   23.8s] classical kalman             val 0.363 m  test 0.348 m  {'q': 1.0}
+[  558.9s] classical imm                val 0.279 m  test 0.280 m  {'q': 0.1, 'omega': 0.5, 'p_stay': 0.99}
+[ 1201.3s] learned lstm_seq_direct          test 0.285 +- 0.001 m  stream 0.283 m (max|d| 1.1e-06)  wall 613s (search 378s, train 234s)  {'hidden': 128, 'layers': 2, 'lr': 0.00048242724625082887, 'dropout': 0.059656465191206154, 'batch': 8, 'weight_decay': 0.0}
+[ 3158.2s] learned minlstm_seq_direct       test 0.350 +- 0.001 m  stream 0.348 m (max|d| 9.1e-05)  wall 1957s (search 1451s, train 505s)  {'hidden': 128, 'layers': 3, 'lr': 0.0033558275976411614, 'dropout': 0.09074508712277203, 'batch': 8, 'weight_decay': 0.0}
+[ 4127.6s] learned minlstm_seq_res_direct   test 0.348 +- 0.001 m  stream 0.349 m (max|d| 9.8e-06)  wall 969s (search 622s, train 347s)  {'hidden': 128, 'layers': 2, 'lr': 0.0009880676869498427, 'dropout': 0.053422960666104385, 'batch': 8, 'weight_decay': 0.0}
+[ 4415.5s] learned lstm_seq_hybrid          test 0.267 +- 0.001 m  stream 0.268 m (max|d| 8.3e-07)  wall 288s (search 232s, train 55s)  {'hidden': 128, 'layers': 2, 'lr': 0.002464273078918729, 'dropout': 0.06731068491369468, 'batch': 16, 'weight_decay': 0.0}
+[ 4801.8s] learned minlstm_seq_hybrid       test 0.279 +- 0.001 m  stream 0.281 m (max|d| 7.8e-07)  wall 386s (search 286s, train 100s)  {'hidden': 128, 'layers': 2, 'lr': 0.00660537222970317, 'dropout': 0.1385063180155532, 'batch': 16, 'weight_decay': 0.0}
+[ 5194.8s] learned minlstm_seq_res_hybrid   test 0.279 +- 0.000 m  stream 0.279 m (max|d| 1.7e-05)  wall 393s (search 296s, train 97s)  {'hidden': 128, 'layers': 1, 'lr': 0.0005535666105037023, 'dropout': 3.5526873153869654e-05, 'batch': 16, 'weight_decay': 0.0001}
+[ 6252.2s] held-out pedestrian: kalman=0.333  imm=0.279  lstm_seq_direct=0.310  minlstm_seq_direct=0.362  minlstm_seq_res_direct=0.354  lstm_seq_hybrid=0.288  minlstm_seq_hybrid=0.285  minlstm_seq_res_hybrid=0.289
+[ 7257.0s] held-out cyclist: kalman=0.376  imm=0.275  lstm_seq_direct=0.298  minlstm_seq_direct=0.399  minlstm_seq_res_direct=0.383  lstm_seq_hybrid=0.270  minlstm_seq_hybrid=0.276  minlstm_seq_res_hybrid=0.276
+[ 8539.4s] held-out vehicular: kalman=0.335  imm=0.283  lstm_seq_direct=1.024  minlstm_seq_direct=0.508  minlstm_seq_res_direct=0.994  lstm_seq_hybrid=0.306  minlstm_seq_hybrid=0.282  minlstm_seq_res_hybrid=0.281
+[ 8542.7s] bench lstm_seq               2.57 2.59 2.56 2.58 3.30 7.30 14.47 29.54 60.90
+[ 9889.5s] bench plain_lstm_seq         21.91 42.92 84.72 166.61 339.48 867.58 2887.77 10364.78 39074.27
+[ 9896.5s] bench minlstm_seq            5.40 5.40 5.38 5.39 8.75 17.29 33.99 67.04 133.62
+W1015 04:46:27.110000 1207 torch/_inductor/utils.py:1613] [0/0] Not enough SMs to use max_autotune_gemm mode
+[10082.8s] bench minlstm_seq_compiled   3.00 2.95 2.88 2.95 3.36 6.77 13.37 27.15 55.72
+[10122.7s] done -> /home/hanbarasansudhamathi/thz-beamforming/results/streaming_study.json

@@ -1,0 +1,18 @@
+\begin{table}[t]
+\centering
+\caption{Per-slot inference cost: streaming step vs.\ re-reading a $W$-slot window ($\mu$s).}\label{tab:compute}
+\begin{tabular}{lrrrr}
+\toprule
+Model & Step & $W{=}10$ & $W{=}40$ & MACs/step \\
+\midrule
+LSTM (cpu) & 408.6 & 538.6 & 882.3 & 49,792 \\
+LSTM (plain PyTorch) (cpu) & 189.1 & 1404.8 & 5157.2 & 49,792 \\
+minLSTM (cpu) & 221.6 & 621.4 & 1098.7 & 12,800 \\
+minLSTM-res (cpu) & 312.0 & 810.9 & 1279.8 & 24,832 \\
+LSTM (cuda) & 245.7 & 286.8 & 292.9 & 49,792 \\
+LSTM (plain PyTorch) (cuda) & 478.1 & 3579.2 & 13157.3 & 49,792 \\
+minLSTM (cuda) & 594.3 & 1170.6 & 1172.5 & 12,800 \\
+minLSTM-res (cuda) & 801.5 & 1359.7 & 1384.0 & 24,832 \\
+\bottomrule
+\end{tabular}
+\end{table}
