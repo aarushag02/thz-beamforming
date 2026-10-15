@@ -33,8 +33,12 @@ DeepMIMO O1 60\,GHz scenario, observed with $\sigma=0.5$\,m localisation
 noise, we compare minLSTM and LSTM, used either directly or as a
 learned correction to an interacting-multiple-model (IMM) filter, against tuned
 classical trackers. We also measure training cost, per-slot latency and
-multiply-accumulates. \todo{one sentence of headline results from
-tab:accuracy and tab:compute.}
+multiply-accumulates. A tuned IMM is a strong baseline: direct networks do
+not beat it. Used as a correction to IMM, LSTM lowers next-slot error by
+4.6\% (0.267 vs.\ 0.280\,m) but is 8\% worse than IMM on an unseen vehicular
+regime. minLSTM matches IMM on seen regimes and stays within 2.2\% of it on
+every unseen one. Compiled minLSTM trains 7--9\% faster than cuDNN LSTM on
+sequences of 512 slots or more.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -132,8 +136,9 @@ a linear first-order scan. During training it is evaluated over the whole
 trajectory with a log-space prefix scan~\cite{heinsen2023scan}. At inference
 it is unrolled one slot at a time. Training and inference compute the same
 function. For every trained model, we stream the test set slot by slot and
-check that this reproduces the error of the parallel evaluation
-(\todo{report max deviation from results JSON: stream\_mae vs.\ test\_mae}).
+check that this reproduces the parallel evaluation. Across all six trained
+configurations, streamed and parallel predictions differ by at most
+$9.1\times10^{-5}$\,m.
 We stack layers (depth gives upper layers time-dependent gates) and
 optionally wrap each in a pre-norm residual block.
 
@@ -160,6 +165,12 @@ validation loss. Search trials use seeds disjoint from the reported ones. The
 best configuration is retrained with 5 seeds and reported as mean $\pm$
 population standard deviation. Because each sample is a whole trajectory,
 small batches are needed to give enough optimizer steps per epoch.
+
+To test generalisation, each mobility regime in turn is removed from training
+and validation. The Kalman filter and IMM are re-tuned on the remaining two
+regimes, which also changes the hybrid anchor. Each network is retrained there
+with 3 seeds, keeping its hyperparameters from the main search, and every
+method is tested on all trajectories of the removed regime.
 \todo{GPU model, torch version and CPU thread count from
 results/streaming\_study.json meta.}
 
@@ -167,12 +178,46 @@ results/streaming\_study.json meta.}
 
 \subsection{Prediction accuracy}
 \input{tables/accuracy}
-\todo{Does any learned model beat tuned IMM? By how much, and does hybrid beat
-direct? Report per-regime differences.}
+Table~\ref{tab:accuracy} reports test MAE. Among classical trackers, the IMM
+is clearly best at 0.280\,m, 20\% below the constant-velocity Kalman filter
+(0.348\,m) and the least-squares line fit (0.350\,m). Two-point
+constant-velocity extrapolation (1.409\,m) is worse than simply holding the
+last observation (0.889\,m), because differencing two noisy observations
+amplifies the noise.
+
+No direct network beats the IMM. The direct LSTM comes within 2\% of it
+(0.285\,m). Direct minLSTM, with or without residual blocks, only matches the
+Kalman filter and the line fit (0.348--0.350\,m). We hypothesise that because
+its gates see only the current input, a stack of a few layers cannot extract a
+turn-rate estimate from noisy displacements and ends up acting as a learned
+linear smoother.
+
+Hybrid mode helps every architecture. The LSTM correction reaches
+$0.267\pm0.001$\,m, 4.6\% below the IMM, and is the only model that clearly
+improves on it. Both minLSTM corrections reach 0.279\,m, which is within one seed
+standard deviation of the IMM's 0.280\,m. Given the IMM's estimate, minLSTM
+no longer has to infer the turn rate itself, which closes the 25\% gap of
+direct mode.
 
 \subsection{Generalisation to an unseen mobility regime}
 \input{tables/generalisation}
-\todo{Learned vs IMM off-distribution.}
+Table~\ref{tab:generalisation} shows that direct networks extrapolate poorly.
+Vehicular users are faster than anything in the remaining two regimes, and on
+them the direct LSTM's error rises to 1.024\,m, 3.6$\times$ that of the IMM.
+Direct minLSTM rises to 0.508\,m and its residual variant to 0.994\,m. Hybrid
+models avoid this collapse because their output is a correction added to the
+filter's prediction.
+
+The hybrids differ in how close they stay to the IMM. The LSTM correction is
+1.8\% better than the IMM on held-out cyclists but 3.2\% worse on pedestrians
+and 8.1\% worse on vehicles. The minLSTM correction is within 2.2\% of the IMM
+on every held-out regime: $+2.2\%$, $+0.4\%$ and $-0.4\%$ for pedestrians,
+cyclists and vehicles. Together with the in-distribution results, this
+suggests a trade-off. The LSTM correction exploits the training distribution
+more, while the minLSTM correction departs less from the filter
+off-distribution. A possible reason is that its state is a convex
+combination of per-slot candidates, which bounds how far it can drift. No learned model beats
+the IMM on held-out pedestrians.
 
 \subsection{Computational cost}
 \input{tables/compute}
@@ -215,7 +260,19 @@ are natural extensions. The carrier is 60\,GHz; extending to sub-THz requires
 a corresponding ray-traced scenario.
 
 \section{Conclusion}
-\todo{Write after results.}
+We recast predictive beam tracking as a streaming problem and compared minLSTM
+and LSTM with tuned classical trackers under splits that hold out whole
+trajectories and whole mobility regimes. On coordinated-turn mobility, a tuned
+IMM is hard to beat. Networks that predict position directly do not beat it
+and can fail badly on unseen speeds. Networks that correct the IMM do better.
+An LSTM correction lowers error by 4.6\% on seen regimes but loses up to 8\%
+on an unseen one. A minLSTM correction matches the IMM and stays within 2.2\%
+of it everywhere. minLSTM also trains 7--9\% faster than cuDNN LSTM on long
+sequences once compiled, and runs one constant-cost update per slot at
+inference. For deployment, this argues for learned corrections anchored on a
+classical filter rather than end-to-end predictors. Validation on real
+measurements is the next step. \todo{one sentence on beam misalignment once
+tab:beam exists.}
 
 \bibliographystyle{IEEEtran}
 \bibliography{refs}
