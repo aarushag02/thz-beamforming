@@ -83,7 +83,9 @@ This paper makes three contributions.
 \section{System Model}
 
 A base station with an $N_t$-element uniform linear array serves a single user
-moving in the O1 60\,GHz outdoor scenario~\cite{alkhateeb2019deepmimo}. Time is
+moving in the O1 60\,GHz outdoor scenario~\cite{alkhateeb2019deepmimo}. The
+base station is the scenario's transmitter set~10, at $(287.5, 651.5)$\,m and
+6\,m height, 10--45\,m to the side of the street the user moves along. Time is
 slotted with $\Delta t = 0.1$\,s. At slot $t$ the base station observes a noisy
 position $\mathbf{z}_t = \mathbf{p}_t + \mathbf{n}_t$, with
 $\mathbf{n}_t \sim \mathcal{N}(\mathbf{0}, \sigma^2 \mathbf{I})$ and
@@ -241,8 +243,17 @@ MAC ratio from the bench section of results/streaming\_study.json.}
 
 \subsection{Beam misalignment versus array size}
 \IfFileExists{tables/beam.tex}{\input{tables/beam}}{\todo{run beam\_eval.py}}
-\todo{At which $N_t$ do predictor differences exceed a meaningful fraction of a
-beamwidth?}
+Table~\ref{tab:beam} reports the mean misalignment in beamwidths. Because the
+beamwidth shrinks as $1/N_t$, misalignment measured in beamwidths roughly
+doubles each time the array doubles. Whether to predict matters far more than
+which predictor to use. With 128 elements, holding the last observation leaves
+a mean misalignment of 0.51 beamwidths, already past the half-beamwidth outage
+threshold, and two-point extrapolation leaves 0.83. Every tracker stays below
+0.21. Among trackers the spread is small: 0.167 beamwidths for the IMM, 0.156
+for the LSTM correction and 0.167 for the minLSTM correction. Up to 64
+elements, the IMM and every learned model are within 0.02 beamwidths of each
+other, so their accuracy differences matter for beam alignment only with
+very large arrays. \todo{outage fractions from results/beam\_eval.json.}
 
 \section{Limitations and Future Work}
 The trajectories are synthetic, and learned models may partly fit the
@@ -271,8 +282,10 @@ of it everywhere. minLSTM also trains 7--9\% faster than cuDNN LSTM on long
 sequences once compiled, and runs one constant-cost update per slot at
 inference. For deployment, this argues for learned corrections anchored on a
 classical filter rather than end-to-end predictors. Validation on real
-measurements is the next step. \todo{one sentence on beam misalignment once
-tab:beam exists.}
+measurements is the next step. In beam terms, any predictive tracker keeps a
+128-element beam within 0.21 beamwidths on average, against 0.51 for a
+reactive beam. The IMM and its learned corrections differ by about 0.01
+beamwidths.
 
 \bibliographystyle{IEEEtran}
 \bibliography{refs}
