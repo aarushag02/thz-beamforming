@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Predictive mmWave Beam Tracking - Teammate Overview</title>
+  <style>
+    :root { --ink:#142033; --muted:#56657b; --paper:#f6f8fc; --navy:#153f70; --sky:#dceeff; --mint:#dff6ee; --gold:#fff0c4; --line:#d8e0ec; --accent:#ef7556; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--paper); font:16px/1.58 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width:1060px; margin:auto; padding:42px 24px 72px; }
+    .hero { padding:48px; border-radius:24px; color:white; background:linear-gradient(132deg,#102f57,#1b5e91 58%,#2784a0); box-shadow:0 14px 38px #183c7029; }
+    .eyebrow { margin:0 0 10px; color:#bfe5fa; font-weight:800; font-size:.84rem; letter-spacing:.11em; text-transform:uppercase; }
+    h1 { max-width:800px; margin:0; font-size:clamp(2rem,5vw,3.7rem); line-height:1.05; letter-spacing:-.045em; }
+    h2 { margin:42px 0 14px; font-size:1.55rem; letter-spacing:-.025em; }
+    h3 { margin:0 0 8px; font-size:1rem; }
+    .hero p { max-width:720px; margin:22px 0 0; color:#e7f3fb; font-size:1.17rem; }
+    .takeaway { margin-top:20px; padding:20px 24px; border-left:6px solid var(--accent); border-radius:10px; background:white; box-shadow:0 6px 20px #263b5912; font-size:1.08rem; }
+    .grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+    .card { padding:22px; border:1px solid var(--line); border-radius:16px; background:white; }
+    .card p { margin:0; color:var(--muted); }
+    .chip { display:inline-block; margin-bottom:10px; padding:3px 9px; border-radius:99px; background:var(--sky); color:var(--navy); font-size:.76rem; font-weight:800; }
+    .pipeline { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; align-items:stretch; margin:18px 0; }
+    .step { min-height:112px; padding:16px; border-radius:14px; background:white; border:1px solid var(--line); font-weight:700; }
+    .step small { display:block; margin-top:7px; color:var(--muted); font-size:.8rem; font-weight:500; line-height:1.35; }
+    .arrow { align-self:center; color:#86a3bd; text-align:center; font-size:1.7rem; }
+    .compare { overflow-x:auto; border:1px solid var(--line); border-radius:16px; background:white; }
+    table { width:100%; border-collapse:collapse; min-width:620px; }
+    th, td { padding:13px 16px; border-bottom:1px solid var(--line); text-align:left; }
+    th { background:#edf5fc; color:#284967; font-size:.83rem; text-transform:uppercase; letter-spacing:.05em; }
+    tr:last-child td { border-bottom:0; }
+    .best td { background:#e9f8f0; font-weight:750; }
+    .note { padding:20px 22px; border-radius:14px; background:var(--gold); }
+    .note p { margin:.3rem 0 0; }
+    .talk { padding:26px; border-radius:16px; background:#102f57; color:white; }
+    .talk h2 { margin:0 0 12px; }
+    .talk ol { margin:0; padding-left:1.3rem; }
+    .talk li { margin:8px 0; color:#e3f0f8; }
+    .small { color:var(--muted); font-size:.9rem; }
+    @media (max-width:760px) { .hero { padding:30px; } .grid { grid-template-columns:1fr; } .pipeline { grid-template-columns:1fr; } .arrow { display:none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <p class="eyebrow">Teammate briefing - 60 GHz predictive beam tracking</p>
+      <h1>Point the beam where the user will be next.</h1>
+      <p>This paper asks whether a lightweight recurrent neural network can keep a narrow wireless beam aligned with a moving user, cheaply and reliably.</p>
+    </section>
+
+    <p class="takeaway"><strong>One-sentence takeaway:</strong> Predicting motion is much better than simply aiming at the user’s last observed location, but a well-tuned classical <strong>IMM tracker</strong> is already hard to beat. The best practical learned design is a small network that <strong>corrects</strong> the IMM, rather than trying to replace it.</p>
+
+    <h2>The problem in plain English</h2>
+    <div class="grid">
+      <article class="card"><span class="chip">Why it matters</span><h3>Narrow beams are unforgiving</h3><p>At mmWave/sub-THz frequencies, a base station gets high gain by using a very narrow directional beam. If the user moves while the beam is pointed at their old position, the connection weakens or drops.</p></article>
+      <article class="card"><span class="chip">What is observed</span><h3>Position measurements are noisy</h3><p>Every 0.1 seconds, the base station receives a position estimate with 0.5 m localization noise. It needs to choose the beam for the <em>next</em> slot.</p></article>
+      <article class="card"><span class="chip">What success means</span><h3>Small next-step error</h3><p>The prediction is judged by location error and by angular beam misalignment. A beam is in outage when it misses by more than half of its beamwidth.</p></article>
+    </div>
+
+    <h2>How the system works</h2>
+    <div class="pipeline" aria-label="Prediction pipeline">
+      <div class="step">1. Sense<small>Receive a noisy user position.</small></div><div class="arrow">→</div>
+      <div class="step">2. Track<small>Maintain an estimate of motion and turning.</small></div><div class="arrow">→</div>
+      <div class="step">3. Predict<small>Estimate where the user will be 0.1 s later.</small></div><div class="arrow">→</div>
+      <div class="step">4. Steer<small>Aim the beam at the predicted location.</small></div><div class="arrow">→</div>
+      <div class="step">5. Repeat<small>Update once per slot; no re-reading old history.</small></div>
+    </div>
+    <p><strong>Streaming</strong> is the key implementation idea. Many recurrent-network demos repeatedly feed the last 10 or 40 measurements into the model at every time step. This paper instead keeps a small internal state: each slot arrives, the state is updated once, and the next location is produced. That gives a fixed per-slot cost and avoids redundant work.</p>
+
+    <h2>The contenders</h2>
+    <div class="grid">
+      <article class="card"><h3>IMM filter: the physics/statistics baseline</h3><p>IMM means interacting multiple model. It runs several simple motion hypotheses - e.g., straight-line and turning - and blends them based on which currently explains the noisy observations best.</p></article>
+      <article class="card"><h3>LSTM: the flexible learner</h3><p>An LSTM learns its own memory rules from data. It can identify patterns such as acceleration or the onset of a turn, but it has more parameters and can overfit the kinds of motion it saw in training.</p></article>
+      <article class="card"><h3>minLSTM: a smaller learner</h3><p>minLSTM simplifies the LSTM’s gates so they depend only on the current input. It needs roughly 3.9× fewer multiply-accumulates per layer and can train efficiently on long sequences.</p></article>
+    </div>
+
+    <h2>Direct prediction versus correction</h2>
+    <p>The report evaluates each neural network in two roles. In <strong>direct mode</strong>, the network predicts the next location itself. In <strong>hybrid mode</strong>, IMM first makes its prediction and the network only learns the residual - the small correction to IMM’s answer. Intuitively, this is like having an experienced navigator make the main call while a learned assistant focuses on the unusual details, especially at the start of a maneuver.</p>
+
+    <h2>Key result: accuracy on held-out trajectories</h2>
+    <div class="compare">
+      <table>
+        <thead><tr><th>Method</th><th>Mean absolute next-position error</th><th>Interpretation</th></tr></thead>
+        <tbody>
+          <tr><td>Reactive: hold last observation</td><td>0.889 m</td><td>Not predictive; localization noise and motion hurt.</td></tr>
+          <tr><td>Kalman / line-fit tracker</td><td>0.348-0.350 m</td><td>Reasonable conventional baselines.</td></tr>
+          <tr><td>Direct LSTM</td><td>0.285 m</td><td>Close to the strongest baseline, but does not beat it.</td></tr>
+          <tr><td><strong>IMM (classical)</strong></td><td><strong>0.280 m</strong></td><td>Strongest standalone solution.</td></tr>
+          <tr class="best"><td><strong>IMM + LSTM correction</strong></td><td><strong>0.267 m</strong></td><td>Best seen-regime result: 4.6% better than IMM.</td></tr>
+          <tr><td>IMM + minLSTM correction</td><td>0.279 m</td><td>Essentially matches IMM with a smaller learned component.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>What happens when motion changes?</h2>
+    <p>To test generalization, the authors remove one entire mobility type from training: pedestrian, cyclist, or vehicular. Direct neural networks can fail badly on an unfamiliar speed range; direct LSTM reaches <strong>1.024 m</strong> error on unseen vehicular motion, versus <strong>0.283 m</strong> for IMM. The hybrids are far safer. In particular, IMM + minLSTM stays within 2.2% of IMM on every unseen regime, while IMM + LSTM is 8.1% worse than IMM on unseen vehicles.</p>
+    <div class="note"><strong>Important interpretation:</strong><p>The paper is not evidence that “deep learning replaces tracking filters.” It supports a more disciplined claim: a learned correction can add value, but the classical IMM supplies robust structure when deployment conditions differ from training.</p></div>
+
+    <h2>Compute and beam-level meaning</h2>
+    <div class="grid">
+      <article class="card"><h3>Latency is not the bottleneck</h3><p>All streaming updates are below 0.6 ms, much lower than the 100 ms slot duration. On a GPU at batch size one, kernel-launch overhead makes minLSTM slower than cuDNN LSTM despite its lower arithmetic cost.</p></article>
+      <article class="card"><h3>Long-sequence training</h3><p>Once compiled, minLSTM trains 7-9% faster than cuDNN LSTM for sequences of 512 slots or more, and uses about half the peak memory at 4096 slots.</p></article>
+      <article class="card"><h3>Prediction matters more than model choice</h3><p>With a 128-element array, simply holding the last location causes 0.51 beamwidths of mean error. Predictive trackers keep this under 0.21; the gap among good trackers is much smaller.</p></article>
+    </div>
+
+    <h2>Limits to mention honestly</h2>
+    <ul>
+      <li>All trajectories are synthetic and follow a coordinated-turn motion model - a setting especially favorable to IMM.</li>
+      <li>The channel evaluation is geometric only; a full received-SNR evaluation through ray-traced channels is left for later.</li>
+      <li>Held-out mobility results for neural networks are mildly optimistic because hyperparameters were selected using validation data that included the held-out regime.</li>
+      <li>The report is a draft: author/affiliation fields and a novelty-claim literature check are explicitly marked TODO.</li>
+    </ul>
+
+    <section class="talk">
+      <h2>A 45-second explanation for a teammate</h2>
+      <ol>
+        <li>At very high wireless frequencies, the beam is so narrow that aiming at where a user <em>was</em> can miss them.</li>
+        <li>So the base station predicts where the user will be one slot ahead using noisy position observations.</li>
+        <li>A classic IMM tracker already does this extremely well because it explicitly balances “moving straight” and “turning” hypotheses.</li>
+        <li>A full LSTM can improve IMM slightly on familiar motion, but it is less reliable when the motion type changes.</li>
+        <li>The compact minLSTM is the conservative option: when used as an IMM correction, it preserves IMM-like robustness while offering efficient streaming training and lower arithmetic cost.</li>
+      </ol>
+    </section>
+    <p class="small">Source values and conclusions are taken from the supplied four-page draft, “Streaming Minimal RNNs for Predictive mmWave Beam Tracking: Constant Per-Slot Cost and an Honest Comparison with IMM Filtering.”</p>
+  </main>
+</body>
+</html>

@@ -1,0 +1,21 @@
+\begin{table}[t]
+\centering
+\caption{Mean beam misalignment (half-power beamwidths) vs.\ array size.}\label{tab:beam}
+\begin{tabular}{lrrrrr}
+\toprule
+Method & $N_t{=}8$ & $N_t{=}16$ & $N_t{=}32$ & $N_t{=}64$ & $N_t{=}128$ \\
+\midrule
+Reactive (hold) & 0.03 & 0.06 & 0.13 & 0.26 & 0.51 \\
+Constant velocity & 0.05 & 0.10 & 0.21 & 0.42 & 0.83 \\
+LS line fit & 0.01 & 0.03 & 0.05 & 0.10 & 0.20 \\
+Kalman (CV) & 0.01 & 0.02 & 0.05 & 0.10 & 0.20 \\
+IMM (CV+CT) & 0.01 & 0.02 & 0.04 & 0.08 & 0.17 \\
+LSTM & 0.01 & 0.02 & 0.04 & 0.08 & 0.16 \\
+minLSTM & 0.01 & 0.03 & 0.05 & 0.10 & 0.20 \\
+minLSTM-res & 0.01 & 0.03 & 0.05 & 0.10 & 0.20 \\
+IMM + LSTM & 0.01 & 0.02 & 0.04 & 0.08 & 0.16 \\
+IMM + minLSTM & 0.01 & 0.02 & 0.04 & 0.08 & 0.17 \\
+IMM + minLSTM-res & 0.01 & 0.02 & 0.04 & 0.08 & 0.17 \\
+\bottomrule
+\end{tabular}
+\end{table}

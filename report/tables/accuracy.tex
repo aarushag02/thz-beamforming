@@ -1,0 +1,21 @@
+\begin{table}[t]
+\centering
+\caption{One-step prediction error on held-out trajectories (mean $\pm$ std over seeds).}\label{tab:accuracy}
+\begin{tabular}{lrr}
+\toprule
+Method & MAE (m) & Params \\
+\midrule
+Reactive (hold) & 0.889 & 0 \\
+Constant velocity & 1.409 & 0 \\
+LS line fit & 0.350 & 0 \\
+Kalman (CV) & 0.348 & 0 \\
+IMM (CV+CT) & 0.280 & 0 \\
+LSTM & 0.285 $\pm$ 0.001 & 199,938 \\
+minLSTM & 0.350 $\pm$ 0.001 & 100,482 \\
+minLSTM-res & 0.348 $\pm$ 0.001 & 100,482 \\
+IMM + LSTM & 0.267 $\pm$ 0.001 & 200,962 \\
+IMM + minLSTM & 0.279 $\pm$ 0.001 & 51,714 \\
+IMM + minLSTM-res & 0.279 $\pm$ 0.000 & 50,946 \\
+\bottomrule
+\end{tabular}
+\end{table}
