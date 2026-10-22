@@ -7,3 +7,4 @@ __pycache__/
 models/*.pt
 .pytest_cache/
 .superpowers/
+.DS_Store

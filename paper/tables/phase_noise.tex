@@ -1,0 +1,16 @@
+\begin{table}[t]
+\centering
+\caption{IMM + minLSTM under i.i.d.\ per-element phase error $\phi\sim\mathcal{N}(0,\sigma_\phi^2)$ on the transmit beam of every method (same draw for all), $N_t{=}64$, mean over 10 draws. Gain is over the equally impaired reactive beam; expected loss is the large-array limit $10\log_{10}(e)\,\sigma_\phi^2$.}\label{tab:phasenoise}
+\begin{tabular}{lrrrrrrr}
+\toprule
+$\sigma_\phi$ (rad) & Exp.\ loss (dB) & MRT SNR & MRT gain & MRT gap (\%) & DFT-128 SNR & DFT-128 gain & DFT-128 gap (\%) \\
+\midrule
+0 & 0.00 & 31.67 & +0.85 & 42 & 31.71 & +0.93 & 75 \\
+0.05 & 0.01 & 31.65 & +0.85 & 42 & 31.70 & +0.93 & 75 \\
+0.1 & 0.04 & 31.62 & +0.85 & 42 & 31.66 & +0.93 & 75 \\
+0.2 & 0.17 & 31.49 & +0.85 & 42 & 31.54 & +0.92 & 75 \\
+0.3 & 0.39 & 31.28 & +0.85 & 42 & 31.32 & +0.91 & 75 \\
+0.5 & 1.09 & 30.60 & +0.84 & 42 & 30.64 & +0.90 & 74 \\
+\bottomrule
+\end{tabular}
+\end{table}

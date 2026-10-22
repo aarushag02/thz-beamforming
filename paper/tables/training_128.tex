@@ -1,0 +1,23 @@
+\begin{table}[t]
+\centering
+\caption{Beam training with a 128-beam DFT codebook: measure each method's top-$k$ beams on the live channel, or sweep all of them. $\tau$ is the time to measure one beam as a fraction of the update interval; effective SE is $(1-k\tau)\log_2(1+\mathrm{SNR})$.}\label{tab:training128}
+\begin{tabular}{lrrrrrr}
+\toprule
+Method & Beams & SNR (dB) & SE & SE$_{\mathrm{eff}}$ $\tau{=}0.00036$ & SE$_{\mathrm{eff}}$ $\tau{=}0.0018$ & SE$_{\mathrm{eff}}$ $\tau{=}0.01$ \\
+\midrule
+Exhaustive sweep & 128 & 32.02 & 10.64 & 10.15 & 8.19 & 0.00 \\
+Reactive (CSI at $t$), top-1 & 1 & 30.78 & 10.23 & 10.23 & 10.22 & 10.13 \\
+Reactive (CSI at $t$), top-3 & 3 & 31.70 & 10.54 & 10.53 & 10.48 & 10.22 \\
+Reactive (CSI at $t$), top-5 & 5 & 31.89 & 10.60 & 10.58 & 10.50 & 10.07 \\
+IMM (CV+CT), top-1 & 1 & 31.70 & 10.54 & 10.54 & 10.52 & 10.43 \\
+IMM (CV+CT), top-3 & 3 & 31.99 & 10.63 & 10.62 & 10.58 & 10.32 \\
+IMM (CV+CT), top-5 & 5 & 32.02 & 10.64 & 10.62 & 10.55 & 10.11 \\
+IMM + minLSTM, top-1 & 1 & 31.71 & 10.54 & 10.54 & 10.52 & 10.44 \\
+IMM + minLSTM, top-3 & 3 & 31.99 & 10.63 & 10.62 & 10.58 & 10.32 \\
+IMM + minLSTM, top-5 & 5 & 32.02 & 10.64 & 10.62 & 10.55 & 10.11 \\
+IMM + LSTM, top-1 & 1 & 31.72 & 10.54 & 10.54 & 10.52 & 10.44 \\
+IMM + LSTM, top-3 & 3 & 32.00 & 10.64 & 10.62 & 10.58 & 10.32 \\
+IMM + LSTM, top-5 & 5 & 32.02 & 10.64 & 10.62 & 10.55 & 10.11 \\
+\bottomrule
+\end{tabular}
+\end{table}

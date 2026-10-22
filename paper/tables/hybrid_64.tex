@@ -1,0 +1,23 @@
+\begin{table}[t]
+\centering
+\caption{SNR gain (dB) over the reactive beam with hybrid precoding from a 64-beam DFT codebook at $N_t{=}64$, against fully-digital MRT; beam match is how often the analog beam ($N_{\mathrm{RF}}{=}1$) equals the oracle's.}\label{tab:hybrid64}
+\begin{tabular}{lrrrrr}
+\toprule
+Method & $N_{\mathrm{RF}}{=}1$ & $N_{\mathrm{RF}}{=}2$ & $N_{\mathrm{RF}}{=}4$ & MRT & Match (\%) \\
+\midrule
+Oracle & +1.21 & +1.69 & +1.93 & +2.02 & 100 \\
+Reactive (CSI at $t$) & +0.00 & +0.00 & +0.00 & +0.00 & 83 \\
+Reactive (hold) & -0.39 & -0.41 & -0.38 & -0.41 & 78 \\
+Constant velocity & -1.10 & -1.10 & -1.07 & -1.13 & 72 \\
+LS line fit & +0.74 & +0.66 & +0.68 & +0.70 & 88 \\
+Kalman (CV) & +0.77 & +0.70 & +0.72 & +0.75 & 88 \\
+IMM (CV+CT) & +0.84 & +0.79 & +0.83 & +0.86 & 90 \\
+LSTM & +0.86 & +0.78 & +0.82 & +0.86 & 90 \\
+minLSTM & +0.71 & +0.67 & +0.68 & +0.70 & 88 \\
+minLSTM-res & +0.73 & +0.67 & +0.68 & +0.70 & 88 \\
+IMM + LSTM & +0.87 & +0.81 & +0.83 & +0.87 & 90 \\
+IMM + minLSTM & +0.84 & +0.79 & +0.83 & +0.85 & 90 \\
+IMM + minLSTM-res & +0.84 & +0.78 & +0.82 & +0.85 & 90 \\
+\bottomrule
+\end{tabular}
+\end{table}
