@@ -1,0 +1,8 @@
+[   25.1s] scale=full device=cuda corpus 420/90/90
+[  462.5s] lstm_seq_direct          best val 0.281 m  (10/20 pruned)  437s
+[ 1772.6s] minlstm_seq_direct       best val 0.329 m  (4/20 pruned)  1310s
+[ 2276.0s] minlstm_seq_res_direct   best val 0.342 m  (12/20 pruned)  503s
+[ 2421.8s] lstm_seq_hybrid          best val 0.262 m  (8/20 pruned)  146s
+[ 2632.3s] minlstm_seq_hybrid       best val 0.275 m  (11/20 pruned)  210s
+[ 2883.2s] minlstm_seq_res_hybrid   best val 0.276 m  (7/20 pruned)  251s
+[ 2885.5s] figures -> C:\Users\ashar\Desktop\FALL 2026\aarush\thz-beamforming\results/search_*.png, training_curves_selected.png

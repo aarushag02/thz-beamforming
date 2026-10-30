@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Predictive Beamforming Poster</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  /* 24 x 36 in portrait at 96 px/in = 2304 x 3456 px. Print with poster/build_poster.ps1. */
+  @page { size: 24in 36in; margin: 0; }
+  :root {
+    --navy: #0f2747;
+    --accent: #1c5cab;
+    --accent-soft: #e8eff8;
+    --ink: #1d1d1b;
+    --muted: #52514e;
+    --rule: #c9d3e0;
+    --paper: #ffffff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 24in; height: 36in; background: var(--paper); }
+  body {
+    font-family: "Inter", "Segoe UI", Arial, sans-serif;
+    color: var(--ink);
+    font-size: 27px;
+    line-height: 1.32;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .poster {
+    width: 24in; height: 36in; overflow: hidden;
+    padding: 56px 68px 34px;
+    display: flex; flex-direction: column;
+  }
+  b, strong { font-weight: 700; }
+  .hl { color: var(--accent); font-weight: 700; }
+
+  /* header */
+  header { border-bottom: 10px solid var(--navy); padding-bottom: 20px; }
+  h1 { font-size: 104px; line-height: 1.0; font-weight: 900; color: var(--navy); letter-spacing: -2px; }
+  .subtitle { font-size: 50px; font-weight: 700; color: var(--navy); margin-top: 14px; }
+  .lead { font-size: 35px; font-weight: 600; color: var(--accent); margin-top: 16px; line-height: 1.3; }
+  .authors { font-size: 30px; margin-top: 12px; color: var(--muted); }
+  .authors b { color: var(--ink); }
+
+  /* system model strip */
+  .system { margin-top: 20px; padding-bottom: 20px; border-bottom: 3px solid var(--navy); }
+  h2.band { font-size: 44px; font-weight: 800; color: var(--navy); margin-bottom: 14px; border: none; padding: 0; }
+  .pipeline { display: flex; align-items: stretch; gap: 0; }
+  .stage {
+    flex: 1; border: 3px solid var(--navy); border-radius: 10px; background: #f6f8fb;
+    padding: 12px 8px; text-align: center; display: flex; flex-direction: column; justify-content: center;
+  }
+  .stage .t { font-weight: 800; font-size: 27px; color: var(--navy); line-height: 1.15; }
+  .stage .s { font-size: 22px; color: var(--muted); margin-top: 4px; }
+  .stage.ours { background: var(--accent); border-color: var(--accent); }
+  .stage.ours .t, .stage.ours .s { color: #fff; }
+  .arrow { width: 46px; display: flex; align-items: center; justify-content: center; font-size: 44px; color: var(--navy); font-weight: 800; }
+  .system p { margin-top: 14px; font-size: 28px; }
+
+  /* columns */
+  .cols { flex: 1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; margin-top: 20px; min-height: 0; }
+  .col { padding: 0 34px; border-left: 3px solid var(--rule); display: flex; flex-direction: column; gap: 18px; min-height: 0; }
+  .col:first-child { padding-left: 0; border-left: none; }
+  .col:last-child { padding-right: 0; }
+  h2 { font-size: 44px; font-weight: 800; color: var(--navy); line-height: 1.1; border-bottom: 4px solid var(--navy); padding-bottom: 6px; margin-bottom: 10px; }
+  h2 .n { color: var(--accent); margin-right: 12px; }
+  h3 { font-size: 32px; font-weight: 800; color: var(--navy); line-height: 1.15; margin-bottom: 6px; }
+  ul { padding-left: 30px; }
+  li { margin: 3px 0; }
+  li::marker { color: var(--accent); }
+  figure img { width: 100%; display: block; }
+  figcaption { font-size: 23px; color: var(--muted); margin-top: 6px; line-height: 1.3; }
+  figcaption b { color: var(--ink); }
+
+  table.acc { width: 100%; border-collapse: collapse; font-size: 26px; margin-top: 4px; }
+  table.acc th { text-align: left; font-weight: 700; color: var(--navy); border-bottom: 3px solid var(--navy); padding: 6px 8px; }
+  table.acc th.r, table.acc td.r { text-align: right; }
+  table.acc td { padding: 3px 8px; border-bottom: 1px solid var(--rule); }
+  table.acc tr.ours td { background: var(--accent-soft); font-weight: 700; color: var(--accent); }
+  table.acc tr.ref td { color: var(--muted); }
+
+  .callout {
+    border: 4px solid var(--accent); border-radius: 14px; background: var(--accent-soft);
+    padding: 20px 24px;
+  }
+  .callout h3 { color: var(--accent); }
+
+  .takeaways { border: 5px solid var(--navy); border-radius: 16px; padding: 16px 22px; }
+  .takeaways h2 { border: none; margin-bottom: 8px; padding-bottom: 0; }
+  .tk { display: grid; grid-template-columns: 48px 1fr; gap: 14px; margin: 10px 0; align-items: start; }
+  .tk .num { width: 48px; height: 48px; border-radius: 50%; background: var(--navy); color: #fff; font-weight: 800; font-size: 32px; display: flex; align-items: center; justify-content: center; }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .stat { border: 4px solid var(--navy); border-radius: 12px; padding: 12px 10px; text-align: center; }
+  .stat .v { white-space: nowrap; font-size: 46px; font-weight: 900; color: var(--navy); line-height: 1.05; }
+  .stat .l { font-size: 22px; color: var(--muted); line-height: 1.25; margin-top: 4px; }
+
+  /* bottom band */
+  .bottom {
+    margin-top: 20px; background: var(--navy); color: #fff; border-radius: 18px;
+    padding: 22px 32px; display: grid; grid-template-columns: 1.35fr 1fr 1fr 210px; gap: 40px; align-items: start;
+  }
+  .bottom h3 { color: #fff; font-size: 34px; border-bottom: 3px solid rgba(255,255,255,.45); padding-bottom: 6px; margin-bottom: 12px; }
+  .bottom p, .bottom li { font-size: 26px; line-height: 1.35; }
+  .bottom li::marker { color: #9cc0ee; }
+  .bottom .answer { font-size: 28px; }
+  .bottom .answer b { color: #9cc0ee; }
+  .qr { text-align: center; }
+  .qr img { width: 170px; height: 170px; background: #fff; padding: 8px; border-radius: 8px; }
+  .qr div { font-size: 22px; margin-top: 6px; line-height: 1.25; }
+
+  footer { margin-top: 10px; font-size: 21px; color: var(--muted); display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+<div class="poster">
+
+<header>
+  <h1>Predictive Beamforming at 60 GHz</h1>
+  <div class="subtitle">IMM-Anchored minLSTM Tracking with Hybrid DFT-Codebook Beamforming</div>
+  <div class="lead">Predicting where a user will be in the next slot lets the base station aim its beam ahead of time:
+    75% of the achievable SNR gain (+3 dB for vehicles), measuring 3 beams instead of 128, on single-RF-chain hardware.</div>
+  <div class="authors"><b>Aarush Agarwal</b>, <b>Harissh Sudhamati</b> · Columbia University · Brooklyn AI-Native 6G Summit 2026</div>
+</header>
+
+<section class="system">
+  <h2 class="band">System Model: IMM + minLSTM + 128-Beam Hybrid DFT Beamforming</h2>
+  <div class="pipeline">
+    <div class="stage"><div class="t">Noisy Position</div><div class="s">0.5 m error</div></div>
+    <div class="arrow">→</div>
+    <div class="stage"><div class="t">IMM Tracker</div><div class="s">3 motion models</div></div>
+    <div class="arrow">→</div>
+    <div class="stage ours"><div class="t">minLSTM Correction</div><div class="s">learned fix</div></div>
+    <div class="arrow">→</div>
+    <div class="stage"><div class="t">Predicted Position</div><div class="s">next 0.1 s slot</div></div>
+    <div class="arrow">→</div>
+    <div class="stage"><div class="t">Digital-Twin Channel</div><div class="s">DeepMIMO O1_60</div></div>
+    <div class="arrow">→</div>
+    <div class="stage"><div class="t">DFT Beam Selection</div><div class="s">1 RF chain</div></div>
+    <div class="arrow">→</div>
+    <div class="stage"><div class="t">Transmit Beam</div><div class="s">64 antennas</div></div>
+  </div>
+  <p><b>Built for fast users.</b> The gain comes from <b>cyclists and vehicles: +0.96 dB and +2.99 dB (80% and 88% of the achievable gain)</b>.
+    The <b>IMM</b> tracks the turns; the <b>minLSTM</b> learns only its residual error, with ¼ of an LSTM’s parameters;
+    a <b>128-beam DFT codebook on one RF chain</b> beats 64 beams (+0.93 vs +0.84 dB) and fully-digital MRT (+0.85 dB).
+    IMM + LSTM is marginally more accurate (0.267 vs 0.279 m) with a tied SNR gain, at about 4× the cost.</p>
+</section>
+
+<main class="cols">
+
+  <!-- column 1: why, setup, training -->
+  <div class="col">
+    <section>
+      <h2><span class="n">1</span>Motivation</h2>
+      <ul>
+        <li>Large mmWave/THz arrays form narrow beams, about <b>1.6°</b> with 64 antennas</li>
+        <li><b>Reactive</b> beamforming aims where the user <i>was</i>, so the beam goes stale as the user moves</li>
+        <li>Re-sweeping all beams costs airtime; <b>predictive</b> beamforming aims at the next position instead</li>
+      </ul>
+    </section>
+    <section>
+      <h2><span class="n">2</span>Experimental Setup</h2>
+      <ul>
+        <li><b>600 synthetic trajectories</b>, 200 slots of 0.1 s; split by whole trajectory (420 / 90 / 90)</li>
+        <li><b>Pedestrian</b> (0.8–2 m/s), <b>cyclist</b> (3–8 m/s), <b>vehicular</b> (8–20 m/s); 0.5 m position noise</li>
+        <li><b>Fair test:</b> every beam is scored on the <b>true</b> next-slot channel; the oracle knows it (upper bound)</li>
+      </ul>
+    </section>
+    <section>
+      <h2><span class="n">3</span>Training The Predictor</h2>
+      <h3>The IMM Anchor Starts Ahead.</h3>
+      <figure>
+        <img src="../results/poster/fig_search_history.png" alt="Best validation error after each Optuna trial">
+        <figcaption><b>Fig. 1.</b> Best validation error per Optuna trial; same 20-trial budget for every model.</figcaption>
+      </figure>
+      <ul>
+        <li>IMM-anchored models start at the IMM’s <b>0.28 m</b> on trial 1; they only learn a small correction</li>
+        <li>Direct minLSTM must learn motion from scratch: <b>0.45 → 0.33 m</b>, still improving at trial 20</li>
+      </ul>
+      <h3 style="margin-top:22px">Training Is Stable Across Seeds.</h3>
+      <figure>
+        <img src="../results/poster/fig_training_curves.png" alt="Validation error per training epoch">
+        <figcaption><b>Fig. 2.</b> Validation error per epoch; line = mean of the 5 seeds, band = min–max.</figcaption>
+      </figure>
+      <ul>
+        <li>Direct networks start near <b>0.68 m</b> and need 150–190 epochs; minLSTM stops at <b>0.34 m</b></li>
+        <li>Anchored models start at the IMM; IMM + LSTM dips to 0.266 m then overfits, <b>IMM + minLSTM never falls behind the IMM</b></li>
+      </ul>
+    </section>
+  </div>
+
+  <!-- column 2: accuracy and SNR -->
+  <div class="col">
+    <section>
+      <h2><span class="n">4</span>Prediction Accuracy</h2>
+      <table class="acc">
+        <tr><th>One-step predictor</th><th class="r">Test error</th><th class="r">Params</th></tr>
+        <tr class="ref"><td>Hold last position</td><td class="r">0.89 m</td><td class="r">–</td></tr>
+        <tr><td>Tuned IMM</td><td class="r">0.280 m</td><td class="r">–</td></tr>
+        <tr><td>LSTM (direct)</td><td class="r">0.285 m</td><td class="r">200k</td></tr>
+        <tr><td>minLSTM (direct)</td><td class="r">0.350 m</td><td class="r">100k</td></tr>
+        <tr><td>IMM + LSTM</td><td class="r">0.267 m</td><td class="r">201k</td></tr>
+        <tr class="ours"><td>IMM + minLSTM (ours)</td><td class="r">0.279 m</td><td class="r">51.7k</td></tr>
+      </table>
+      <ul style="margin-top:12px">
+        <li>Direct networks do not beat a tuned IMM; anchored on it, they do</li>
+        <li><b>Re-run check:</b> retrained on a laptop GPU, all four networks reproduce these errors within 2 mm (5 seeds each)</li>
+      </ul>
+    </section>
+    <section>
+      <h2><span class="n">5</span>Results: SNR And Hardware</h2>
+      <h3>Predictive Beats Reactive, Most At High Speed.</h3>
+      <figure>
+        <img src="../results/poster/bare/fig2_reactive_vs_predictive.png" alt="SNR gain over reactive by mobility type">
+        <figcaption><b>Fig. 3.</b> SNR gain over reactive; hybrid beamforming, 128-beam DFT codebook, 1 RF chain, 64 antennas.</figcaption>
+      </figure>
+      <ul>
+        <li><b>+0.93 dB</b> overall, of 1.24 dB achievable; vehicles <b>+2.99 dB</b> (of 3.39), cyclists <b>+0.96 dB</b></li>
+        <li>Pedestrians barely move per slot: −0.13 dB (0.20 dB available)</li>
+        <li><b>Cheap hardware is enough:</b> one-RF-chain hybrid DFT recovers <b>75%</b> of the achievable gain; fully-digital MRT with 64 RF chains recovers 42%</li>
+      </ul>
+    </section>
+    <section>
+      <h3>The Gain Survives Hardware Phase Error.</h3>
+      <figure>
+        <img src="../results/poster/bare/fig4_phase_noise.png" alt="SNR against per-antenna phase error">
+        <figcaption><b>Fig. 4.</b> Mean SNR against i.i.d. per-element phase error, 10 Monte Carlo draws.</figcaption>
+      </figure>
+      <ul>
+        <li>0.5 rad of phase error costs every method about 1.07 dB; the predictive gain only moves from +0.93 to <b>+0.90 dB</b></li>
+      </ul>
+    </section>
+  </div>
+
+  <!-- column 3: robustness, overhead, takeaways -->
+  <div class="col">
+    <section>
+      <h2><span class="n">6</span>Robustness</h2>
+      <h3>Anchoring On The IMM Keeps Learning Safe.</h3>
+      <figure>
+        <img src="../results/poster/bare/fig1_generalisation.png" alt="Position error on a held-out mobility type">
+        <figcaption><b>Fig. 5.</b> Position error on a mobility type held out of training (3 seeds).</figcaption>
+      </figure>
+      <ul>
+        <li>On their own, LSTM fails on unseen vehicles (<b>1.02 m</b>) and minLSTM reaches 0.51 m</li>
+        <li><b>IMM + minLSTM stays at 0.28–0.29 m</b> for every held-out type, the same as the IMM: the anchor removes the failure mode</li>
+      </ul>
+    </section>
+    <section>
+      <h2><span class="n">7</span>Overhead And Compute</h2>
+      <ul>
+        <li>Misalignment at 128 antennas: <b>0.51</b> beamwidths reactive vs <b>0.17</b> predictive</li>
+        <li><b>3 predicted beams reach 31.99 dB</b>, within 0.03 dB of a full 128-beam sweep</li>
+        <li><b>Outage</b> (SNR &gt; 3 dB below oracle): <b>10.7%</b> reactive vs <b>3.0%</b> predictive</li>
+        <li>With beams refreshed every 3.6 ms, a 128-beam sweep leaves no time for data; 3 predicted beams still deliver <b>10.3 b/s/Hz</b></li>
+      </ul>
+      <div class="stats" style="margin-top:18px">
+        <div class="stat"><div class="v">~4×</div><div class="l">fewer operations per step than LSTM</div></div>
+        <div class="stat"><div class="v">¼</div><div class="l">of the LSTM’s parameters</div></div>
+        <div class="stat"><div class="v">0.22 ms</div><div class="l">per slot on a CPU, vs a 100 ms slot</div></div>
+      </div>
+    </section>
+    <section class="takeaways">
+      <h2>Key Takeaways</h2>
+      <div class="tk"><div class="num">1</div><div><b>Safe learning.</b> An IMM anchor keeps the learned predictor accurate on motion it never saw.</div></div>
+      <div class="tk"><div class="num">2</div><div><b>Lightweight AI.</b> minLSTM has ¼ of an LSTM’s parameters and a constant cost per slot.</div></div>
+      <div class="tk"><div class="num">3</div><div><b>Right hardware.</b> One-RF-chain hybrid DFT recovers the most gain on the cheapest hardware.</div></div>
+      <div class="tk"><div class="num">4</div><div><b>Less overhead.</b> Full-sweep SNR from about 40× fewer beam measurements.</div></div>
+    </section>
+  </div>
+</main>
+
+<section class="bottom">
+  <div>
+    <h3>Bottom Line</h3>
+    <p class="answer">A tuned <b>IMM does most of the tracking</b>. A small streaming minLSTM correction on top of it is
+      <b>safe</b> (never worse than the IMM, even on unseen motion) and <b>cheap</b> (51.7k parameters, 0.22 ms per slot),
+      and pointing a <b>one-RF-chain DFT beam</b> at the predicted position recovers 75% of the achievable SNR gain.</p>
+  </div>
+  <div>
+    <h3>Limits</h3>
+    <ul>
+      <li>Synthetic trajectories; one user, narrowband, one slot ahead</li>
+      <li>The minLSTM correction adds little over the IMM (0.279 vs 0.280 m)</li>
+      <li>No gain for slow pedestrians</li>
+    </ul>
+  </div>
+  <div>
+    <h3>Next</h3>
+    <ul>
+      <li><b>Real data:</b> DeepSense 6G and over-the-air SDR tests</li>
+      <li><b>Longer horizons</b> with uncertainty-aware beam widening</li>
+      <li><b>Multi-user, wideband, sub-THz;</b> an O-RAN xApp</li>
+    </ul>
+  </div>
+  <div class="qr">
+    <img src="qr_repo.svg" alt="QR code linking to the code repository">
+    <div>Code and results</div>
+  </div>
+</section>
+
+<footer>
+  <span>DeepMIMO O1_60 ray-traced scenario · minLSTM: Feng et al., “Were RNNs All We Needed?”, 2024 · IMM: Blom &amp; Bar-Shalom, 1988</span>
+  <span>github.com/aarushag02/thz-beamforming</span>
+</footer>
+
+</div>
+</body>
+</html>
+

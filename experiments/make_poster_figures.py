@@ -1,6 +1,7 @@
 """Poster figures: the proposed system against reactive beamforming, from committed JSON results.
 
     python experiments/make_poster_figures.py        # -> results/poster/fig*.{png,pdf}
+    python experiments/make_poster_figures.py --bare # -> results/poster/bare/, no in-figure titles
 
 Proposed system: IMM + minLSTM position prediction feeding hybrid beamforming with a
 128-beam DFT codebook and one RF chain, Nt = 64. Every number is read from
@@ -31,6 +32,7 @@ GRID = "#ecebe7"
 PROPOSED = "minlstm_seq_hybrid"
 CODEBOOK = "128"
 LABEL = "Predictive (IMM + minLSTM)"
+BARE = False         # --bare: the poster page sets titles and captions, so leave them out
 
 plt.rcParams.update({
     "font.family": ["Helvetica Neue", "Helvetica", "Arial", "DejaVu Sans"],
@@ -46,6 +48,8 @@ plt.rcParams.update({
 
 
 def title(ax, head, sub):
+    if BARE:
+        return
     ax.set_title(head, loc="left", pad=30)
     ax.text(0, 1.02, sub, transform=ax.transAxes, fontsize=13, color=DARK, va="bottom")
 
@@ -87,7 +91,8 @@ def fig_generalisation(study, out):
     ax.set_ylim(0, 1.2)
     ax.grid(axis="x", visible=False)
     ax.legend(ncol=2, loc="upper left", bbox_to_anchor=(0, 0.98))
-    ax.set_title("Prediction error on unseen motion", loc="left", pad=12)
+    if not BARE:
+        ax.set_title("Prediction error on unseen motion", loc="left", pad=12)
     save(fig, out, "fig1_generalisation")
 
 
@@ -145,9 +150,10 @@ def fig_mrt_vs_hybrid(cb, out):
         ax.set_ylim(0, top)
         ax.set_ylabel(ylab)
         ax.grid(axis="x", visible=False)
-    ax1.set_title("Hybrid DFT recovers more gain than fully-digital MRT", loc="left", pad=30)
-    ax1.text(0, 1.02, f"IMM + minLSTM prediction, 64 antennas", transform=ax1.transAxes,
-             fontsize=13, color=DARK, va="bottom")
+    if not BARE:
+        ax1.set_title("Hybrid DFT recovers more gain than fully-digital MRT", loc="left", pad=30)
+        ax1.text(0, 1.02, f"IMM + minLSTM prediction, 64 antennas", transform=ax1.transAxes,
+                 fontsize=13, color=DARK, va="bottom")
     save(fig, out, "fig3_mrt_vs_hybrid")
 
 
@@ -210,9 +216,12 @@ def fig_spectral_efficiency(cb, out):
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--results", default=str(ROOT / "results"))
+    p.add_argument("--bare", action="store_true", help="omit in-figure titles (for the poster page)")
     args = p.parse_args(argv)
+    global BARE
+    BARE = args.bare
     results = pathlib.Path(args.results)
-    out = results / "poster"
+    out = results / "poster" / ("bare" if BARE else "")
     out.mkdir(parents=True, exist_ok=True)
     for old in out.glob("fig*"):
         old.unlink()
